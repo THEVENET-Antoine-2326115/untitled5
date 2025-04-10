@@ -58,7 +58,7 @@
     document.addEventListener('DOMContentLoaded', function() {
         // Fonction pour échapper le HTML
         function escapeHtml(unsafe) {
-            return unsafe
+            return String(unsafe)
                 .replace(/&/g, "&amp;")
                 .replace(/</g, "&lt;")
                 .replace(/>/g, "&gt;")
