@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="SshConfigs">
+    <configs>
+      <sshConfig authType="PASSWORD" host="ssh-moscatellitest.alwaysdata.net" id="b277b2dc-010c-492e-8e4f-381dfb728878" port="22" nameFormat="DESCRIPTIVE" username="moscatellitest" useOpenSSHConfig="true" />
+    </configs>
+  </component>
+</project>

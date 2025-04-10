@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="WebServers">
+    <option name="servers">
+      <webServer id="ff8cf0f8-9c5c-4d50-b755-8642002bd3c5" name="mosca" url="http://moscatellitest.alwaysdata.net">
+        <fileTransfer rootFolder="/home/moscatellitest" accessType="SFTP" host="ssh-moscatellitest.alwaysdata.net" port="22" sshConfigId="b277b2dc-010c-492e-8e4f-381dfb728878" sshConfig="moscatellitest@ssh-moscatellitest.alwaysdata.net:22 password">
+          <advancedOptions>
+            <advancedOptions dataProtectionLevel="Private" keepAliveTimeout="0" passiveMode="true" shareSSLContext="true" />
+          </advancedOptions>
+        </fileTransfer>
+      </webServer>
+    </option>
+  </component>
+</project>
