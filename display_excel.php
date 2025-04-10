@@ -3,7 +3,7 @@
 require_once 'ExcelReader.php';
 
 // Chemin vers le fichier Excel
-$excelFilePath = "BPU_vrai.xlsx";
+$excelFilePath = "test.xlsx";
 
 // Création de l'objet ExcelReader
 $excelReader = new ExcelReader($excelFilePath);
