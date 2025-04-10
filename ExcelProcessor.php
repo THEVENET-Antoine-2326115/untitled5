@@ -109,3 +109,4 @@ class ExcelProcessor
         return $this->productTotals;
     }
 }
+
