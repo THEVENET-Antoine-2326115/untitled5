@@ -12,7 +12,7 @@ require_once 'ExcelReader.php';
 header('Content-Type: application/json');
 
 // Chemin vers le fichier Excel
-$excelFilePath = "BPU_Moscatelli entretoises harmonisées 25-03-28.xlsx";
+$excelFilePath = "BPU_vrai.xlsx";
 
 // Création de l'objet ExcelReader
 $excelReader = new ExcelReader($excelFilePath);
