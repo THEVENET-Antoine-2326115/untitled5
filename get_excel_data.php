@@ -1,4 +1,10 @@
 <?php
+
+// get_excel_data.php
+ini_set('display_errors', 0);
+error_reporting(0);
+
+
 // get_excel_data.php
 require_once 'ExcelReader.php';
 
