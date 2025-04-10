@@ -45,6 +45,29 @@
             font-weight: bold;
             display: none;
         }
+        .total-row {
+            background-color: #f0f8ff;
+            font-weight: bold;
+        }
+        .total-cell {
+            background-color: #e6f2ff;
+            font-weight: bold;
+            text-align: right;
+        }
+        .summary-box {
+            background-color: #f0f8ff;
+            border: 1px solid #b0c4de;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+        }
+        .summary-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+        .sheet-container {
+            margin-bottom: 40px;
+        }
     </style>
 </head>
 <body>
@@ -66,13 +89,23 @@
                 .replace(/'/g, "&#039;");
         }
 
+        // Fonction pour formater les nombres
+        function formatNumber(number) {
+            return new Intl.NumberFormat('fr-FR', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2
+            }).format(number);
+        }
+
         // Fonction pour créer les tableaux HTML
-        function renderExcelData(data) {
+        function renderExcelData(data, totals) {
             let html = '';
 
             for (const sheetName in data) {
                 const sheetData = data[sheetName];
+                const sheetTotals = totals[sheetName] || { rows: {}, total_price: 0 };
 
+                html += `<div class="sheet-container">`;
                 html += `<h2 class="sheet-title">Feuille: ${escapeHtml(sheetName)}</h2>`;
 
                 if (sheetData && sheetData.length > 0) {
@@ -83,6 +116,8 @@
                     for (const headerCell of sheetData[0]) {
                         html += `<th>${escapeHtml(headerCell || '')}</th>`;
                     }
+                    // Ajouter une colonne pour le total
+                    html += `<th>Total</th>`;
                     html += '</tr>';
 
                     // Données
@@ -91,13 +126,29 @@
                         for (const cell of sheetData[i]) {
                             html += `<td>${escapeHtml(cell || '')}</td>`;
                         }
+
+                        // Afficher le total de la ligne
+                        const rowTotal = sheetTotals.rows[i] || 0;
+                        html += `<td class="total-cell">${formatNumber(rowTotal)} €</td>`;
+
                         html += '</tr>';
                     }
 
                     html += '</table>';
+
+                    // Afficher le résumé des totaux
+                    html += `
+                        <div class="summary-box">
+                            <div class="summary-title">Résumé des totaux</div>
+                            <div>Prix total (prix × quantité + livraison): <strong>${formatNumber(sheetTotals.total_price)} €</strong></div>
+                        </div>
+                    `;
+
                 } else {
                     html += '<p>Aucune donnée dans cette feuille</p>';
                 }
+
+                html += `</div>`;
             }
 
             return html;
@@ -111,14 +162,17 @@
                 }
                 return response.json();
             })
-            .then(data => {
+            .then(response => {
                 document.getElementById('loading').style.display = 'none';
 
-                if (data.error) {
+                if (response.error) {
                     document.getElementById('error').style.display = 'block';
-                    document.getElementById('error').textContent = data.error;
+                    document.getElementById('error').textContent = response.error;
                 } else {
-                    document.getElementById('excel-data').innerHTML = renderExcelData(data);
+                    document.getElementById('excel-data').innerHTML = renderExcelData(
+                        response.data,
+                        response.totals
+                    );
                 }
             })
             .catch(error => {
