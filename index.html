@@ -45,37 +45,60 @@
             font-weight: bold;
             display: none;
         }
-        .total-row {
-            background-color: #f0f8ff;
-            font-weight: bold;
-        }
         .total-cell {
             background-color: #e6f2ff;
             font-weight: bold;
             text-align: right;
         }
-        .product-totals {
-            background-color: #f0f8ff;
-            border: 1px solid #b0c4de;
-            padding: 15px;
-            margin-top: 20px;
-            border-radius: 5px;
-        }
-        .product-totals-title {
-            font-weight: bold;
-            margin-bottom: 10px;
-        }
-        .product-table {
-            width: 100%;
-            margin-top: 10px;
-        }
         .sheet-container {
             margin-bottom: 40px;
+        }
+        /* Styles pour la recherche de produit */
+        .search-container {
+            margin: 20px 0;
+            padding: 10px;
+            background-color: #f9f9f9;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .search-input {
+            padding: 8px;
+            width: 250px;
+            margin-right: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .search-button {
+            padding: 8px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #product-result {
+            margin-top: 15px;
+            display: none;
+        }
+        #product-result table {
+            width: auto;
+            min-width: 300px;
+        }
+        .no-result {
+            color: #d9534f;
+            font-style: italic;
         }
     </style>
 </head>
 <body>
 <h1>Affichage du fichier Excel</h1>
+
+<!-- Conteneur pour la recherche de produit -->
+<div class="search-container">
+    <input type="text" id="product-search" class="search-input" placeholder="Nom du produit...">
+    <button id="search-button" class="search-button">Rechercher</button>
+    <div id="product-result"></div>
+</div>
 
 <div id="loading">Chargement des données Excel...</div>
 <div id="error"></div>
@@ -83,6 +106,9 @@
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
+        // Variable pour stocker les données des produits
+        let allProductTotals = {};
+
         // Fonction pour échapper le HTML
         function escapeHtml(unsafe) {
             return String(unsafe)
@@ -139,34 +165,6 @@
                     }
 
                     html += '</table>';
-
-                    // Afficher le prix total par produit - version simplifiée
-                    if (Object.keys(sheetProductTotals.products).length > 0) {
-                        html += `
-                            <div class="product-totals">
-                                <div class="product-totals-title">Prix total par produit</div>
-                                <table class="product-table">
-                                    <tr>
-                                        <th>Produit</th>
-                                        <th>Prix total</th>
-                                    </tr>
-                        `;
-
-                        for (const [produit, total] of Object.entries(sheetProductTotals.products)) {
-                            html += `
-                                <tr>
-                                    <td>${escapeHtml(produit)}</td>
-                                    <td class="total-cell">${formatNumber(total)} €</td>
-                                </tr>
-                            `;
-                        }
-
-                        html += `
-                                </table>
-                            </div>
-                        `;
-                    }
-
                 } else {
                     html += '<p>Aucune donnée dans cette feuille</p>';
                 }
@@ -176,6 +174,70 @@
 
             return html;
         }
+
+        // Fonction pour rechercher un produit
+        function searchProduct(productName) {
+            const resultDiv = document.getElementById('product-result');
+            resultDiv.style.display = 'block';
+
+            // Recherche insensible à la casse mais terme exact
+            const searchTerm = productName.toLowerCase().trim();
+            let found = false;
+            let resultsHtml = '';
+
+            // Parcourir toutes les feuilles et leurs produits
+            for (const sheetName in allProductTotals) {
+                const sheetProducts = allProductTotals[sheetName].products || {};
+
+                for (const [produit, total] of Object.entries(sheetProducts)) {
+                    // Vérifier si le terme correspond exactement (insensible à la casse)
+                    if (produit.toLowerCase() === searchTerm) {
+                        if (!found) {
+                            resultsHtml = `
+                                <table>
+                                    <tr>
+                                        <th>Produit</th>
+                                        <th>Prix total</th>
+                                    </tr>
+                            `;
+                            found = true;
+                        }
+
+                        resultsHtml += `
+                            <tr>
+                                <td>${escapeHtml(produit)}</td>
+                                <td class="total-cell">${formatNumber(total)} €</td>
+                            </tr>
+                        `;
+                    }
+                }
+            }
+
+            if (found) {
+                resultsHtml += `</table>`;
+                resultDiv.innerHTML = resultsHtml;
+            } else {
+                resultDiv.innerHTML = `<p class="no-result">Aucun produit trouvé pour "${escapeHtml(productName)}"</p>`;
+            }
+        }
+
+        // Gérer le clic sur le bouton de recherche
+        document.getElementById('search-button').addEventListener('click', function() {
+            const productName = document.getElementById('product-search').value;
+            if (productName.trim() !== '') {
+                searchProduct(productName);
+            }
+        });
+
+        // Gérer la touche Entrée dans le champ de recherche
+        document.getElementById('product-search').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                const productName = this.value;
+                if (productName.trim() !== '') {
+                    searchProduct(productName);
+                }
+            }
+        });
 
         // Récupérer les données Excel via AJAX
         fetch('get_excel_data.php')
@@ -192,6 +254,9 @@
                     document.getElementById('error').style.display = 'block';
                     document.getElementById('error').textContent = response.error;
                 } else {
+                    // Stocker les données pour la recherche
+                    allProductTotals = response.productTotals;
+
                     document.getElementById('excel-data').innerHTML = renderExcelData(
                         response.data,
                         response.productTotals
@@ -207,7 +272,3 @@
 </script>
 </body>
 </html>
-
-
-
-
