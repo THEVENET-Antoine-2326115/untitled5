@@ -19,10 +19,10 @@ $excelProcessor = new ExcelProcessor($excelFilePath);
 $success = $excelProcessor->processData();
 
 if ($success) {
-    // Récupération des données et des totaux
+    // Récupération des données et des totaux par produit
     $response = [
         'data' => $excelProcessor->getData(),
-        'totals' => $excelProcessor->getTotals()
+        'productTotals' => $excelProcessor->getProductTotals()
     ];
 
     // Conversion en JSON

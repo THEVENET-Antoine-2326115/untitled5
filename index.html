@@ -54,16 +54,20 @@
             font-weight: bold;
             text-align: right;
         }
-        .summary-box {
+        .product-totals {
             background-color: #f0f8ff;
             border: 1px solid #b0c4de;
             padding: 15px;
             margin-top: 20px;
             border-radius: 5px;
         }
-        .summary-title {
+        .product-totals-title {
             font-weight: bold;
             margin-bottom: 10px;
+        }
+        .product-table {
+            width: 100%;
+            margin-top: 10px;
         }
         .sheet-container {
             margin-bottom: 40px;
@@ -98,12 +102,12 @@
         }
 
         // Fonction pour créer les tableaux HTML
-        function renderExcelData(data, totals) {
+        function renderExcelData(data, productTotals) {
             let html = '';
 
             for (const sheetName in data) {
                 const sheetData = data[sheetName];
-                const sheetTotals = totals[sheetName] || { rows: {}, total_price: 0 };
+                const sheetProductTotals = productTotals[sheetName] || { products: {}, rows: {} };
 
                 html += `<div class="sheet-container">`;
                 html += `<h2 class="sheet-title">Feuille: ${escapeHtml(sheetName)}</h2>`;
@@ -128,7 +132,7 @@
                         }
 
                         // Afficher le total de la ligne
-                        const rowTotal = sheetTotals.rows[i] || 0;
+                        const rowTotal = sheetProductTotals.rows[i] || 0;
                         html += `<td class="total-cell">${formatNumber(rowTotal)} €</td>`;
 
                         html += '</tr>';
@@ -136,13 +140,32 @@
 
                     html += '</table>';
 
-                    // Afficher le résumé des totaux
-                    html += `
-                        <div class="summary-box">
-                            <div class="summary-title">Résumé des totaux</div>
-                            <div>Prix total (prix × quantité + livraison): <strong>${formatNumber(sheetTotals.total_price)} €</strong></div>
-                        </div>
-                    `;
+                    // Afficher le prix total par produit - version simplifiée
+                    if (Object.keys(sheetProductTotals.products).length > 0) {
+                        html += `
+                            <div class="product-totals">
+                                <div class="product-totals-title">Prix total par produit</div>
+                                <table class="product-table">
+                                    <tr>
+                                        <th>Produit</th>
+                                        <th>Prix total</th>
+                                    </tr>
+                        `;
+
+                        for (const [produit, total] of Object.entries(sheetProductTotals.products)) {
+                            html += `
+                                <tr>
+                                    <td>${escapeHtml(produit)}</td>
+                                    <td class="total-cell">${formatNumber(total)} €</td>
+                                </tr>
+                            `;
+                        }
+
+                        html += `
+                                </table>
+                            </div>
+                        `;
+                    }
 
                 } else {
                     html += '<p>Aucune donnée dans cette feuille</p>';
@@ -171,7 +194,7 @@
                 } else {
                     document.getElementById('excel-data').innerHTML = renderExcelData(
                         response.data,
-                        response.totals
+                        response.productTotals
                     );
                 }
             })

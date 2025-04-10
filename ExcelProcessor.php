@@ -6,7 +6,7 @@ class ExcelProcessor
 {
     private $excelReader;
     private $data = [];
-    private $totals = [];
+    private $productTotals = [];
 
     public function __construct($filePath)
     {
@@ -20,7 +20,7 @@ class ExcelProcessor
             return false;
         }
 
-        // Récupération des données et calcul des totaux
+        // Récupération des données et calcul des totaux par produit
         $this->data = $this->excelReader->getData();
 
         foreach ($this->data as $sheetName => $rows) {
@@ -31,6 +31,7 @@ class ExcelProcessor
             $headers = $rows[0];
             $prixCol = $this->findColumn($headers, ['prix', 'price']);
             $qteCol = $this->findColumn($headers, ['quantité', 'quantity', 'qté', 'qty']);
+            $produitCol = $this->findColumn($headers, ['produit', 'product', 'article', 'item', 'designation', 'description']);
             $livraisonCol = $this->findColumn($headers, ['livraison', 'shipping']);
 
             // Si on ne trouve pas les colonnes nécessaires, on passe à la feuille suivante
@@ -38,8 +39,8 @@ class ExcelProcessor
                 continue;
             }
 
-            $this->totals[$sheetName] = [
-                'total_price' => 0,
+            $this->productTotals[$sheetName] = [
+                'products' => [],
                 'rows' => []
             ];
 
@@ -48,10 +49,18 @@ class ExcelProcessor
                 $prix = $this->toNumber($rows[$i][$prixCol] ?? 0);
                 $qte = $this->toNumber($rows[$i][$qteCol] ?? 0);
                 $livraison = ($livraisonCol !== false) ? $this->toNumber($rows[$i][$livraisonCol] ?? 0) : 0;
+                $produit = ($produitCol !== false) ? ($rows[$i][$produitCol] ?? "Produit #$i") : "Produit #$i";
 
                 $total = ($prix * $qte) + $livraison;
-                $this->totals[$sheetName]['rows'][$i] = $total;
-                $this->totals[$sheetName]['total_price'] += $total;
+                $this->productTotals[$sheetName]['rows'][$i] = $total;
+
+                // Stockage du prix total par produit - simplifié pour n'avoir que le total
+                if (!isset($this->productTotals[$sheetName]['products'][$produit])) {
+                    $this->productTotals[$sheetName]['products'][$produit] = $total;
+                } else {
+                    // Si le produit existe déjà, on ajoute au total
+                    $this->productTotals[$sheetName]['products'][$produit] += $total;
+                }
             }
         }
 
@@ -95,8 +104,8 @@ class ExcelProcessor
         return $this->data;
     }
 
-    public function getTotals()
+    public function getProductTotals()
     {
-        return $this->totals;
+        return $this->productTotals;
     }
 }
