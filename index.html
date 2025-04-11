@@ -116,10 +116,18 @@
             margin-bottom: 20px;
         }
 
-        #repere-filter {
+        #quantity-filter {
             margin-top: 10px;
             padding-top: 10px;
             border-top: 1px solid #ddd;
+        }
+
+        .search-input {
+            padding: 8px;
+            width: 100px;
+            margin-right: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
         }
         .search-select {
             padding: 10px;
@@ -221,6 +229,15 @@
             <!-- Les options seront ajoutées dynamiquement en JavaScript -->
         </select>
         <button id="search-repere-button" class="search-button">Filtrer</button>
+    </div>
+
+    <!-- Formulaire de quantité (initialement masqué) -->
+    <div id="quantity-filter" class="search-form" style="display: none;">
+        <div>
+            <label for="quantity-input">Quantité:</label>
+            <input type="number" id="quantity-input" class="search-input" min="1" value="1">
+        </div>
+        <button id="calculate-button" class="search-button">Calculer</button>
     </div>
     <div id="site-result" style="display: none;"></div>
 </div>
@@ -622,10 +639,14 @@
             const resultDiv = document.getElementById('site-result');
             const selectedSite = document.getElementById('site-select').value;
             const selectedRepere = document.getElementById('repere-select').value;
+            const quantityFilterDiv = document.getElementById('quantity-filter');
+
+            // Masquer le div de résultat
+            resultDiv.style.display = 'none';
 
             // Vérifier qu'un site et un repère sont sélectionnés
             if (!selectedSite || !selectedRepere) {
-                resultDiv.style.display = 'none';
+                quantityFilterDiv.style.display = 'none';
                 return;
             }
 
@@ -637,45 +658,61 @@
 
             if (filteredItems.length === 0) {
                 resultDiv.innerHTML = `<div class="no-result">Aucun item trouvé pour le repère "${escapeHtml(selectedRepere)}"</div>`;
-                resultDiv.style.display = 'block'; // Afficher le message d'erreur
+                quantityFilterDiv.style.display = 'none';
                 return;
             }
 
-            // Calculer le total pour les items filtrés
+            // Stocker les items filtrés dans une variable globale pour la fonction de calcul
+            window.currentFilteredItems = filteredItems;
+
+            // Afficher le formulaire de quantité
+            quantityFilterDiv.style.display = 'flex';
+
+            // Réinitialiser la quantité à 1
+            document.getElementById('quantity-input').value = 1;
+        }
+
+        // Fonction de calcul avec quantité
+        function calculateWithQuantity() {
+            const resultDiv = document.getElementById('site-result');
+            const quantityInput = document.getElementById('quantity-input');
+            const selectedRepere = document.getElementById('repere-select').value;
+
+            // Vérifier que la quantité est valide
+            const quantity = parseInt(quantityInput.value, 10);
+            if (isNaN(quantity) || quantity < 1) {
+                quantityInput.value = 1;
+                return;
+            }
+
+            // Vérifier que nous avons des items filtrés
+            if (!window.currentFilteredItems || window.currentFilteredItems.length === 0) {
+                return;
+            }
+
+            // Calculer le total pour les items filtrés avec la quantité
             let totalAmount = 0;
-            filteredItems.forEach(item => {
+            window.currentFilteredItems.forEach(item => {
                 totalAmount += parseFloat(item.sousTotal) || 0;
             });
 
+            // Multiplier par la quantité
+            const finalAmount = totalAmount * quantity;
+
             // Préparer le HTML des résultats
             let resultsHtml = `
-                <div class="result-title">Repère: ${escapeHtml(selectedRepere)}</div>
+                <div class="result-title">Sous-total pour ${quantity} ${escapeHtml(selectedRepere)}</div>
                 <table class="result-table">
                     <tr>
-                        <th>Description</th>
                         <th>Sous-total</th>
                     </tr>
-            `;
-
-            // Afficher les items filtrés
-            for (const item of filteredItems) {
-                resultsHtml += `
                     <tr>
-                        <td>${escapeHtml(item.description)}</td>
-                        <td class="price-cell">${formatNumber(item.sousTotal)} €</td>
-                    </tr>
-                `;
-            }
-
-            resultsHtml += `
-                    <tr>
-                        <td style="text-align: right; font-weight: bold;">Total</td>
-                        <td class="price-cell" style="background-color: #e6f2ff;">${formatNumber(totalAmount)} €</td>
+                        <td class="price-cell" style="font-size: 1.2em; background-color: #e6f2ff;">${formatNumber(finalAmount)} €</td>
                     </tr>
                 </table>
             `;
 
-            // Afficher les résultats uniquement après sélection du repère
+            // Afficher les résultats après sélection de la quantité
             resultDiv.innerHTML = resultsHtml;
             resultDiv.style.display = 'block';
         }
@@ -687,6 +724,8 @@
                 searchBySite();
                 // Masquer également le div de résultat lors d'une nouvelle recherche par site
                 document.getElementById('site-result').style.display = 'none';
+                // Masquer le formulaire de quantité
+                document.getElementById('quantity-filter').style.display = 'none';
             });
 
             // Gestionnaire pour la touche Entrée dans le sélecteur de site
@@ -696,6 +735,8 @@
                 document.getElementById('repere-select').value = '';
                 // Masquer le div de résultat
                 document.getElementById('site-result').style.display = 'none';
+                // Masquer le formulaire de quantité
+                document.getElementById('quantity-filter').style.display = 'none';
             });
 
             // Gestionnaire pour le bouton de filtrage par repère
@@ -706,6 +747,26 @@
             // Gestionnaire pour le changement de sélection de repère
             document.getElementById('repere-select').addEventListener('change', function() {
                 filterByRepere();
+                // Masquer le div de résultat quand on change de repère
+                document.getElementById('site-result').style.display = 'none';
+            });
+
+            // Gestionnaire pour le bouton de calcul
+            document.getElementById('calculate-button').addEventListener('click', function() {
+                calculateWithQuantity();
+            });
+
+            // Gestionnaire pour la touche Entrée dans le champ de quantité
+            document.getElementById('quantity-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    calculateWithQuantity();
+                }
+            });
+
+            // Gestionnaire pour le changement de valeur dans le champ de quantité
+            document.getElementById('quantity-input').addEventListener('input', function() {
+                // Masquer le div de résultat quand on change la quantité
+                document.getElementById('site-result').style.display = 'none';
             });
 
             // Gestionnaire pour les titres de fichiers
