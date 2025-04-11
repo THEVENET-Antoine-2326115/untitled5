@@ -115,6 +115,12 @@
             align-items: center;
             margin-bottom: 20px;
         }
+
+        #repere-filter {
+            margin-top: 10px;
+            padding-top: 10px;
+            border-top: 1px solid #ddd;
+        }
         .search-select {
             padding: 10px;
             font-size: 16px;
@@ -207,7 +213,16 @@
         </select>
         <button id="search-site-button" class="search-button">Rechercher</button>
     </div>
-    <div id="site-result"></div>
+
+    <!-- Filtre de repère (initialement masqué) -->
+    <div id="repere-filter" class="search-form" style="display: none;">
+        <select id="repere-select" class="search-select">
+            <option value="">Sélectionnez un repère...</option>
+            <!-- Les options seront ajoutées dynamiquement en JavaScript -->
+        </select>
+        <button id="search-repere-button" class="search-button">Filtrer</button>
+    </div>
+    <div id="site-result" style="display: none;"></div>
 </div>
 
 <div class="toggle-controls">
@@ -449,8 +464,20 @@
         function populateSiteSelect(sites) {
             const selectElement = document.getElementById('site-select');
 
+            // Sites à exclure
+            const sitesToExclude = [
+                "AVIGNON/SAUVETERRE/CADEROUSSE VALLABREGUES",
+                "BEAUCHASTEL",
+                "LOGIS-NEUF"
+            ];
+
+            // Filtrer les sites exclus
+            const filteredSites = sites.filter(site =>
+                site && !sitesToExclude.includes(site)
+            );
+
             // Trier les sites par ordre alphabétique
-            sites.sort();
+            filteredSites.sort();
 
             // Vider d'abord le sélecteur (sauf l'option par défaut)
             while (selectElement.options.length > 1) {
@@ -458,7 +485,7 @@
             }
 
             // Ajouter chaque site comme option
-            sites.forEach(site => {
+            filteredSites.forEach(site => {
                 if (!site) return; // Ignorer les sites vides
 
                 const option = document.createElement('option');
@@ -468,16 +495,73 @@
             });
         }
 
+        // Fonction pour remplir le sélecteur de repères pour un site donné
+        function populateRepereSelect(site) {
+            const selectElement = document.getElementById('repere-select');
+            const repereFilterDiv = document.getElementById('repere-filter');
+
+            // Vider d'abord le sélecteur (sauf l'option par défaut)
+            while (selectElement.options.length > 1) {
+                selectElement.remove(1);
+            }
+
+            // Récupérer les items pour le site sélectionné
+            const items = allItemsBySite[site] || [];
+
+            if (items.length === 0) {
+                repereFilterDiv.style.display = 'none';
+                return;
+            }
+
+            // Créer un Set pour éviter les doublons de descriptions
+            const reperes = new Set();
+
+            // Ajouter chaque description unique qui contient le mot "Panneaux" (ou variations)
+            items.forEach(item => {
+                if (item.description) {
+                    const description = item.description.toLowerCase();
+                    if (description.includes('panneau') ||
+                        description.includes('panneaux') ||
+                        description.includes('pannaux')) {
+                        reperes.add(item.description);
+                    }
+                }
+            });
+
+            // Convertir en array et trier
+            const reperesArray = Array.from(reperes).sort();
+
+            // Si aucun repère contenant "Panneaux" n'est trouvé, masquer le filtre
+            if (reperesArray.length === 0) {
+                repereFilterDiv.style.display = 'none';
+                return;
+            }
+
+            // Ajouter chaque repère comme option
+            reperesArray.forEach(repere => {
+                const option = document.createElement('option');
+                option.value = repere;
+                option.textContent = repere;
+                selectElement.appendChild(option);
+            });
+
+            // Afficher le filtre de repère
+            repereFilterDiv.style.display = 'flex';
+        }
+
         // Fonction de recherche par site
         function searchBySite() {
             const resultDiv = document.getElementById('site-result');
-            resultDiv.style.display = 'block';
+            // Ne pas afficher le div de résultat
+            resultDiv.style.display = 'none';
 
             const selectedSite = document.getElementById('site-select').value;
 
             // Vérifier qu'un site est sélectionné
             if (!selectedSite) {
                 resultDiv.innerHTML = `<div class="no-result">Veuillez sélectionner un site</div>`;
+                // Masquer le filtre de repère
+                document.getElementById('repere-filter').style.display = 'none';
                 return;
             }
 
@@ -486,21 +570,26 @@
 
             if (items.length === 0) {
                 resultDiv.innerHTML = `<div class="no-result">Aucun item trouvé pour le site "${escapeHtml(selectedSite)}"</div>`;
+                // Masquer le filtre de repère
+                document.getElementById('repere-filter').style.display = 'none';
                 return;
             }
 
-            // Calculer le total
+            // Remplir le sélecteur de repères
+            populateRepereSelect(selectedSite);
+
+            // Calcul et préparation des résultats se font toujours,
+            // mais sans afficher le tableau de résultats
             let totalAmount = 0;
             items.forEach(item => {
                 totalAmount += parseFloat(item.sousTotal) || 0;
             });
 
-            // Afficher les résultats
+            // Préparer le HTML des résultats
             let resultsHtml = `
                 <div class="result-title">Items pour le site: ${escapeHtml(selectedSite)} (${items.length} items)</div>
                 <table class="result-table">
                     <tr>
-                        <th>Code</th>
                         <th>Description</th>
                         <th>Sous-total</th>
                     </tr>
@@ -510,7 +599,6 @@
             for (const item of items) {
                 resultsHtml += `
                     <tr>
-                        <td>${escapeHtml(item.code)}</td>
                         <td>${escapeHtml(item.description)}</td>
                         <td class="price-cell">${formatNumber(item.sousTotal)} €</td>
                     </tr>
@@ -519,13 +607,77 @@
 
             resultsHtml += `
                     <tr>
-                        <td colspan="2" style="text-align: right; font-weight: bold;">Total</td>
+                        <td style="text-align: right; font-weight: bold;">Total</td>
                         <td class="price-cell" style="background-color: #e6f2ff;">${formatNumber(totalAmount)} €</td>
                     </tr>
                 </table>
             `;
 
+            // Stocker les résultats dans le div mais sans l'afficher
             resultDiv.innerHTML = resultsHtml;
+        }
+
+        // Fonction de filtrage par repère
+        function filterByRepere() {
+            const resultDiv = document.getElementById('site-result');
+            const selectedSite = document.getElementById('site-select').value;
+            const selectedRepere = document.getElementById('repere-select').value;
+
+            // Vérifier qu'un site et un repère sont sélectionnés
+            if (!selectedSite || !selectedRepere) {
+                resultDiv.style.display = 'none';
+                return;
+            }
+
+            // Récupérer les items pour le site sélectionné
+            const allItems = allItemsBySite[selectedSite] || [];
+
+            // Filtrer les items par repère
+            const filteredItems = allItems.filter(item => item.description === selectedRepere);
+
+            if (filteredItems.length === 0) {
+                resultDiv.innerHTML = `<div class="no-result">Aucun item trouvé pour le repère "${escapeHtml(selectedRepere)}"</div>`;
+                resultDiv.style.display = 'block'; // Afficher le message d'erreur
+                return;
+            }
+
+            // Calculer le total pour les items filtrés
+            let totalAmount = 0;
+            filteredItems.forEach(item => {
+                totalAmount += parseFloat(item.sousTotal) || 0;
+            });
+
+            // Préparer le HTML des résultats
+            let resultsHtml = `
+                <div class="result-title">Repère: ${escapeHtml(selectedRepere)}</div>
+                <table class="result-table">
+                    <tr>
+                        <th>Description</th>
+                        <th>Sous-total</th>
+                    </tr>
+            `;
+
+            // Afficher les items filtrés
+            for (const item of filteredItems) {
+                resultsHtml += `
+                    <tr>
+                        <td>${escapeHtml(item.description)}</td>
+                        <td class="price-cell">${formatNumber(item.sousTotal)} €</td>
+                    </tr>
+                `;
+            }
+
+            resultsHtml += `
+                    <tr>
+                        <td style="text-align: right; font-weight: bold;">Total</td>
+                        <td class="price-cell" style="background-color: #e6f2ff;">${formatNumber(totalAmount)} €</td>
+                    </tr>
+                </table>
+            `;
+
+            // Afficher les résultats uniquement après sélection du repère
+            resultDiv.innerHTML = resultsHtml;
+            resultDiv.style.display = 'block';
         }
 
         // Fonction pour configurer les gestionnaires d'événements
@@ -533,11 +685,27 @@
             // Gestionnaire pour le bouton de recherche par site
             document.getElementById('search-site-button').addEventListener('click', function() {
                 searchBySite();
+                // Masquer également le div de résultat lors d'une nouvelle recherche par site
+                document.getElementById('site-result').style.display = 'none';
             });
 
             // Gestionnaire pour la touche Entrée dans le sélecteur de site
             document.getElementById('site-select').addEventListener('change', function() {
                 searchBySite();
+                // Réinitialiser le sélecteur de repère
+                document.getElementById('repere-select').value = '';
+                // Masquer le div de résultat
+                document.getElementById('site-result').style.display = 'none';
+            });
+
+            // Gestionnaire pour le bouton de filtrage par repère
+            document.getElementById('search-repere-button').addEventListener('click', function() {
+                filterByRepere();
+            });
+
+            // Gestionnaire pour le changement de sélection de repère
+            document.getElementById('repere-select').addEventListener('change', function() {
+                filterByRepere();
             });
 
             // Gestionnaire pour les titres de fichiers
