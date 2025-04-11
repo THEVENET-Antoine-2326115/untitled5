@@ -93,40 +93,81 @@
             display: none;
             transition: height 0.3s ease;
         }
-        /* Styles pour la recherche de produit */
+        /* Styles pour la recherche de site */
         .search-container {
             margin: 20px 0;
-            padding: 10px;
+            padding: 20px;
             background-color: #f9f9f9;
             border: 1px solid #ddd;
             border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
-        .search-input {
-            padding: 8px;
-            width: 250px;
-            margin-right: 10px;
+        .search-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #333;
+        }
+        .search-form {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .search-select {
+            padding: 10px;
+            font-size: 16px;
             border: 1px solid #ccc;
             border-radius: 4px;
+            flex-grow: 1;
+            max-width: 400px;
         }
         .search-button {
-            padding: 8px 15px;
+            padding: 10px 20px;
             background-color: #4CAF50;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
         }
-        #product-result {
-            margin-top: 15px;
+        .search-button:hover {
+            background-color: #45a049;
+        }
+        #site-result {
+            margin-top: 20px;
             display: none;
         }
-        #product-result table {
-            width: auto;
-            min-width: 300px;
+        .result-title {
+            font-size: 18px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            color: #333;
+            border-bottom: 2px solid #45a049;
+            padding-bottom: 5px;
         }
-        .no-result {
-            color: #d9534f;
-            font-style: italic;
+        .result-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        .result-table th {
+            background-color: #4CAF50;
+            color: white;
+            padding: 12px;
+            text-align: left;
+        }
+        .result-table tr:hover {
+            background-color: #f1f1f1;
+        }
+        .result-table td {
+            padding: 10px;
+        }
+        .price-cell {
+            text-align: right;
+            font-weight: bold;
+            color: #2c7fb8;
         }
         .toggle-all-btn {
             margin: 10px 0;
@@ -142,28 +183,31 @@
         .toggle-all-btn:hover {
             background-color: #0b7dda;
         }
+        .no-result {
+            padding: 20px;
+            text-align: center;
+            color: #d9534f;
+            font-style: italic;
+            background-color: #f8d7da;
+            border: 1px solid #f5c6cb;
+            border-radius: 4px;
+        }
     </style>
 </head>
 <body>
 <h1>Affichage des fichiers Excel</h1>
 
-<!-- Conteneur pour la recherche de produit -->
+<!-- Conteneur pour la recherche par site -->
 <div class="search-container">
-    <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
-        <div>
-            <label for="product-search">Nom du produit:</label>
-            <input type="text" id="product-search" class="search-input" placeholder="Nom du produit...">
-        </div>
-
-        <div>
-            <label for="weight-search">Poids:</label>
-            <input type="number" id="weight-search" class="search-input" placeholder="Poids...">
-        </div>
-
-        <button id="search-button" class="search-button">Rechercher</button>
+    <div class="search-title">Recherche par site</div>
+    <div class="search-form">
+        <select id="site-select" class="search-select">
+            <option value="">Sélectionnez un site...</option>
+            <!-- Les options seront ajoutées dynamiquement en JavaScript -->
+        </select>
+        <button id="search-site-button" class="search-button">Rechercher</button>
     </div>
-
-    <div id="product-result"></div>
+    <div id="site-result"></div>
 </div>
 
 <div class="toggle-controls">
@@ -176,7 +220,8 @@
 <script>
     document.addEventListener('DOMContentLoaded', function() {
         // Variables pour stocker les données
-        let allProductTotals = {};
+        let allItemsBySite = {};
+        let allSites = [];
         let filesDataGlobal = {};
         let allTablesVisible = false;
 
@@ -196,6 +241,108 @@
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2
             }).format(number);
+        }
+
+        // Fonction pour extraire les sites et leurs items CCTP associés
+        function extractSiteData(data) {
+            const sites = [];
+            const itemsBySite = {};
+
+            // Liste des sites connus
+            const knownSites = [
+                "DTHR", "DTRS", "DTRI", "DTRM",
+                "SEYSSEL", "CHAUTAGNE_BELLEY_BREGNIER-CORDON", "SAULT-BRENAZ",
+                "PIERRE-BENITE", "VAUGRIS", "PEAGE DE ROUSSILLON", "SAINT VALLIER",
+                "BOURG-LES-VALENCE", "BEAUCHASTEL / LOGIS - NEUF", "BEAUCHASTEL",
+                "LOGIS-NEUF", "MONTELIMAR", "DONZERE MONDRAGON",
+                "AVIGNON", "SAUVETERRE", "CADEROUSSE", "VALLABREGUES",
+                "AVIGNON/SAUVETERRE/CADEROUSSE VALLABREGUES"
+            ];
+
+            // Variable pour suivre le site actuel
+            let currentSite = null;
+            let itemsForCurrentSite = [];
+
+            // Analyser les données uniquement pour le fichier BPU_vrai.xlsx
+            for (const fileKey in data) {
+                if (fileKey !== 'file1' || !data[fileKey].data) continue;
+
+                const fileData = data[fileKey].data;
+
+                // Parcourir les feuilles du fichier
+                for (const sheetName in fileData) {
+                    const sheetData = fileData[sheetName];
+
+                    // Trouver l'index de départ (la ligne avec "Item CCTP")
+                    let startIndex = -1;
+                    for (let i = 0; i < sheetData.length; i++) {
+                        const row = sheetData[i];
+                        if (row && row[0] === "Item CCTP ") {
+                            startIndex = i + 1; // Commencer à la ligne suivante
+                            break;
+                        }
+                    }
+
+                    if (startIndex === -1) continue;
+
+                    // Parcourir les lignes à partir de l'index de départ
+                    for (let i = startIndex; i < sheetData.length; i++) {
+                        const row = sheetData[i];
+
+                        if (!row || row.length === 0) continue;
+
+                        const itemCCTP = row[0];
+                        const description = row[1] || "";
+                        const sousTotal = row[8] || 0; // Colonne "Sous-total"
+
+                        // Si c'est un site connu
+                        if (itemCCTP && (
+                            knownSites.includes(itemCCTP) ||
+                            (!/\s/.test(itemCCTP) && !/\d/.test(itemCCTP) && !sousTotal)
+                        )) {
+                            // C'est un site
+                            if (currentSite && itemsForCurrentSite.length > 0) {
+                                // Pour gérer les occurrences multiples d'un même site
+                                if (!itemsBySite[currentSite]) {
+                                    itemsBySite[currentSite] = [];
+                                }
+                                // Ajouter les items comme un nouveau groupe pour ce site
+                                itemsBySite[currentSite] = itemsBySite[currentSite].concat(itemsForCurrentSite);
+                            }
+
+                            // Nouveau site courant
+                            currentSite = itemCCTP;
+                            if (!sites.includes(currentSite)) {
+                                sites.push(currentSite);
+                            }
+                            itemsForCurrentSite = [];
+                        }
+                        // Si c'est un item CCTP (a un sous-total > 0)
+                        else if (itemCCTP && currentSite && sousTotal > 0) {
+                            // C'est un item CCTP avec un sous-total
+                            itemsForCurrentSite.push({
+                                code: itemCCTP,
+                                description: description,
+                                sousTotal: sousTotal
+                            });
+                        }
+                    }
+
+                    // Sauvegarder les items du dernier site
+                    if (currentSite && itemsForCurrentSite.length > 0) {
+                        if (!itemsBySite[currentSite]) {
+                            itemsBySite[currentSite] = [];
+                        }
+                        // Ajouter les items comme un nouveau groupe pour ce site
+                        itemsBySite[currentSite] = itemsBySite[currentSite].concat(itemsForCurrentSite);
+                    }
+                }
+            }
+
+            return {
+                sites: sites.filter(site => site && itemsBySite[site] && itemsBySite[site].length > 0),
+                itemsBySite: itemsBySite
+            };
         }
 
         // Fonction pour créer les tableaux HTML pour chaque feuille
@@ -219,10 +366,10 @@
                 if (sheetData && sheetData.length > 0) {
                     html += '<table>';
 
-                    // En-têtes
+                    // En-têtes (limités aux 14 premières colonnes)
                     html += '<tr>';
-                    for (const headerCell of sheetData[0]) {
-                        html += `<th>${escapeHtml(headerCell || '')}</th>`;
+                    for (let i = 0; i < Math.min(14, sheetData[0].length); i++) {
+                        html += `<th>${escapeHtml(sheetData[0][i] || '')}</th>`;
                     }
 
                     // Ajouter une colonne pour le total uniquement pour le premier fichier (BPU_vrai.xlsx)
@@ -234,8 +381,8 @@
                     // Données
                     for (let i = 1; i < sheetData.length; i++) {
                         html += '<tr>';
-                        for (const cell of sheetData[i]) {
-                            html += `<td>${escapeHtml(cell || '')}</td>`;
+                        for (let j = 0; j < Math.min(14, sheetData[i].length); j++) {
+                            html += `<td>${escapeHtml(sheetData[i][j] || '')}</td>`;
                         }
 
                         // Afficher le total uniquement pour le premier fichier
@@ -293,263 +440,106 @@
                 html += `</div>`;
 
                 html += `</div>`;
-
-                // Stocker les totaux des produits pour la recherche
-                for (const sheetName in fileData.productTotals) {
-                    const fileSheetKey = `${fileKey}_${sheetName}`;
-                    allProductTotals[fileSheetKey] = fileData.productTotals[sheetName];
-                }
             }
 
             return html;
         }
 
-        // Fonction de recherche unifiée pour produit et poids
-        function searchProducts() {
-            const resultDiv = document.getElementById('product-result');
-            resultDiv.style.display = 'block';
+        // Fonction pour remplir le sélecteur de sites
+        function populateSiteSelect(sites) {
+            const selectElement = document.getElementById('site-select');
 
-            const productName = document.getElementById('product-search').value.trim().toLowerCase();
-            const weightInput = document.getElementById('weight-search').value.trim();
+            // Trier les sites par ordre alphabétique
+            sites.sort();
 
-            // Vérifier qu'au moins un critère est fourni
-            if (productName === '' && weightInput === '') {
-                resultDiv.innerHTML = `<p class="no-result">Veuillez entrer au moins un critère de recherche</p>`;
-                return;
+            // Vider d'abord le sélecteur (sauf l'option par défaut)
+            while (selectElement.options.length > 1) {
+                selectElement.remove(1);
             }
 
-            // Convertir le poids en nombre si fourni
-            const searchWeight = weightInput ? parseFloat(weightInput) : null;
-            if (weightInput !== '' && isNaN(searchWeight)) {
-                resultDiv.innerHTML = `<p class="no-result">Veuillez entrer un poids valide</p>`;
-                return;
-            }
+            // Ajouter chaque site comme option
+            sites.forEach(site => {
+                if (!site) return; // Ignorer les sites vides
 
-            // Tableaux pour stocker les résultats
-            let productsFoundByName = [];
-            let productsFoundByWeight = [];
-            let finalResults = [];
-
-            // 1. Recherche par nom de produit dans BPU_vrai.xlsx
-            if (productName !== '') {
-                for (const sheetKey in allProductTotals) {
-                    if (sheetKey.startsWith('file1_')) {
-                        const sheetProducts = allProductTotals[sheetKey].products || {};
-
-                        for (const [produit, total] of Object.entries(sheetProducts)) {
-                            if (produit.toLowerCase() === productName) {
-                                productsFoundByName.push({
-                                    name: produit,
-                                    price: total,
-                                    weight: null // On ne connaît pas encore le poids
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 2. Recherche par poids dans ref.xlsx
-            if (searchWeight !== null) {
-                const weightFileData = filesDataGlobal.file2?.data || {};
-
-                for (const sheetName in weightFileData) {
-                    const sheetData = weightFileData[sheetName];
-
-                    if (sheetData && sheetData.length > 1) {
-                        // Trouver les colonnes du produit et du poids
-                        const headers = sheetData[0];
-                        let produitCol = -1;
-                        let poidsCol = -1;
-
-                        headers.forEach((header, index) => {
-                            const headerLower = String(header).toLowerCase();
-                            if (headerLower.includes('produit') || headerLower.includes('product')) {
-                                produitCol = index;
-                            }
-                            if (headerLower.includes('poid') || headerLower.includes('weight')) {
-                                poidsCol = index;
-                            }
-                        });
-
-                        // Si on ne trouve pas les colonnes et qu'il y a au moins 2 colonnes, utiliser les deux premières
-                        if (produitCol === -1 && poidsCol === -1 && headers.length >= 2) {
-                            produitCol = 0;
-                            poidsCol = 1;
-                        }
-
-                        // Parcourir les lignes pour trouver les produits avec le poids recherché
-                        for (let i = 1; i < sheetData.length; i++) {
-                            const row = sheetData[i];
-                            if (row.length > Math.max(produitCol, poidsCol)) {
-                                const produit = row[produitCol];
-                                const poids = parseFloat(row[poidsCol]);
-
-                                if (!isNaN(poids) && Math.abs(poids - searchWeight) < 0.0001) {
-                                    productsFoundByWeight.push({
-                                        name: produit,
-                                        price: null, // On ne connaît pas encore le prix
-                                        weight: poids
-                                    });
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 3. Combiner les résultats selon les critères fournis
-            if (productName !== '' && searchWeight !== null) {
-                // Les deux critères sont fournis, on cherche les correspondances exactes
-                for (const prodByName of productsFoundByName) {
-                    for (const prodByWeight of productsFoundByWeight) {
-                        if (prodByName.name.toLowerCase() === prodByWeight.name.toLowerCase()) {
-                            finalResults.push({
-                                name: prodByName.name,
-                                price: prodByName.price,
-                                weight: prodByWeight.weight
-                            });
-                        }
-                    }
-                }
-            } else if (productName !== '') {
-                // Seulement recherche par nom
-                // Pour chaque produit trouvé par nom, chercher son poids dans ref.xlsx
-                for (const prod of productsFoundByName) {
-                    const weightFileData = filesDataGlobal.file2?.data || {};
-
-                    let foundWeight = false;
-                    for (const sheetName in weightFileData) {
-                        const sheetData = weightFileData[sheetName];
-
-                        if (sheetData && sheetData.length > 1) {
-                            const headers = sheetData[0];
-                            let produitCol = -1;
-                            let poidsCol = -1;
-
-                            headers.forEach((header, index) => {
-                                const headerLower = String(header).toLowerCase();
-                                if (headerLower.includes('produit') || headerLower.includes('product')) {
-                                    produitCol = index;
-                                }
-                                if (headerLower.includes('poid') || headerLower.includes('weight')) {
-                                    poidsCol = index;
-                                }
-                            });
-
-                            if (produitCol === -1 && poidsCol === -1 && headers.length >= 2) {
-                                produitCol = 0;
-                                poidsCol = 1;
-                            }
-
-                            for (let i = 1; i < sheetData.length; i++) {
-                                const row = sheetData[i];
-                                if (row.length > Math.max(produitCol, poidsCol)) {
-                                    const produit = row[produitCol];
-                                    const poids = parseFloat(row[poidsCol]);
-
-                                    if (produit.toLowerCase() === prod.name.toLowerCase()) {
-                                        prod.weight = poids;
-                                        foundWeight = true;
-                                        break;
-                                    }
-                                }
-                            }
-                        }
-
-                        if (foundWeight) break;
-                    }
-
-                    finalResults.push(prod);
-                }
-            } else if (searchWeight !== null) {
-                // Seulement recherche par poids
-                // Pour chaque produit trouvé par poids, chercher son prix dans BPU_vrai
-                for (const prod of productsFoundByWeight) {
-                    for (const sheetKey in allProductTotals) {
-                        if (sheetKey.startsWith('file1_')) {
-                            const sheetProducts = allProductTotals[sheetKey].products || {};
-
-                            if (prod.name.toLowerCase() in sheetProducts ||
-                                Object.keys(sheetProducts).some(p => p.toLowerCase() === prod.name.toLowerCase())) {
-
-                                // Trouver la clé exacte (insensible à la casse)
-                                const matchedProduct = Object.keys(sheetProducts).find(
-                                    p => p.toLowerCase() === prod.name.toLowerCase()
-                                );
-
-                                if (matchedProduct) {
-                                    prod.price = sheetProducts[matchedProduct];
-                                }
-                            }
-                        }
-                    }
-
-                    finalResults.push(prod);
-                }
-            }
-
-            // 4. Afficher les résultats
-            if (finalResults.length > 0) {
-                resultsHtml = `
-                    <table>
-                        <tr>
-                            <th>Produit</th>
-                            <th>Poids</th>
-                            <th>Prix total</th>
-                        </tr>
-                `;
-
-                for (const result of finalResults) {
-                    const productName = escapeHtml(result.name);
-                    const weightDisplay = result.weight !== null ? formatNumber(result.weight) + " kg" : "Non disponible";
-                    const priceDisplay = result.price !== null ? formatNumber(result.price) + " €" : "Non disponible";
-
-                    resultsHtml += `
-                        <tr>
-                            <td>${productName}</td>
-                            <td>${weightDisplay}</td>
-                            <td class="total-cell">${priceDisplay}</td>
-                        </tr>
-                    `;
-                }
-
-                resultsHtml += `</table>`;
-                resultDiv.innerHTML = resultsHtml;
-            } else {
-                let message = "Aucun produit ne correspond aux critères";
-                if (productName !== '') {
-                    message += ` pour le nom "${escapeHtml(productName)}"`;
-                }
-                if (searchWeight !== null) {
-                    message += productName !== '' ? " et" : " pour";
-                    message += ` le poids de ${formatNumber(searchWeight)} kg`;
-                }
-
-                resultDiv.innerHTML = `<p class="no-result">${message}</p>`;
-            }
+                const option = document.createElement('option');
+                option.value = site;
+                option.textContent = site;
+                selectElement.appendChild(option);
+            });
         }
 
-        // Gérer le clic sur le bouton de recherche
-        document.getElementById('search-button').addEventListener('click', function() {
-            searchProducts();
-        });
+        // Fonction de recherche par site
+        function searchBySite() {
+            const resultDiv = document.getElementById('site-result');
+            resultDiv.style.display = 'block';
 
-        // Gérer la touche Entrée dans les champs de recherche
-        document.getElementById('product-search').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                searchProducts();
+            const selectedSite = document.getElementById('site-select').value;
+
+            // Vérifier qu'un site est sélectionné
+            if (!selectedSite) {
+                resultDiv.innerHTML = `<div class="no-result">Veuillez sélectionner un site</div>`;
+                return;
             }
-        });
 
-        document.getElementById('weight-search').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                searchProducts();
+            // Récupérer les items pour le site sélectionné
+            const items = allItemsBySite[selectedSite] || [];
+
+            if (items.length === 0) {
+                resultDiv.innerHTML = `<div class="no-result">Aucun item trouvé pour le site "${escapeHtml(selectedSite)}"</div>`;
+                return;
             }
-        });
 
-        // Gestion des boutons d'affichage/masquage
-        function setupToggleHandlers() {
+            // Calculer le total
+            let totalAmount = 0;
+            items.forEach(item => {
+                totalAmount += parseFloat(item.sousTotal) || 0;
+            });
+
+            // Afficher les résultats
+            let resultsHtml = `
+                <div class="result-title">Items pour le site: ${escapeHtml(selectedSite)} (${items.length} items)</div>
+                <table class="result-table">
+                    <tr>
+                        <th>Code</th>
+                        <th>Description</th>
+                        <th>Sous-total</th>
+                    </tr>
+            `;
+
+            // Afficher tous les items (y compris les doublons qui peuvent être des occurrences différentes)
+            for (const item of items) {
+                resultsHtml += `
+                    <tr>
+                        <td>${escapeHtml(item.code)}</td>
+                        <td>${escapeHtml(item.description)}</td>
+                        <td class="price-cell">${formatNumber(item.sousTotal)} €</td>
+                    </tr>
+                `;
+            }
+
+            resultsHtml += `
+                    <tr>
+                        <td colspan="2" style="text-align: right; font-weight: bold;">Total</td>
+                        <td class="price-cell" style="background-color: #e6f2ff;">${formatNumber(totalAmount)} €</td>
+                    </tr>
+                </table>
+            `;
+
+            resultDiv.innerHTML = resultsHtml;
+        }
+
+        // Fonction pour configurer les gestionnaires d'événements
+        function setupEventHandlers() {
+            // Gestionnaire pour le bouton de recherche par site
+            document.getElementById('search-site-button').addEventListener('click', function() {
+                searchBySite();
+            });
+
+            // Gestionnaire pour la touche Entrée dans le sélecteur de site
+            document.getElementById('site-select').addEventListener('change', function() {
+                searchBySite();
+            });
+
             // Gestionnaire pour les titres de fichiers
             document.querySelectorAll('.file-title').forEach(fileTitle => {
                 fileTitle.addEventListener('click', function() {
@@ -641,21 +631,19 @@
                 // Stocker les données pour la recherche
                 filesDataGlobal = response;
 
-                // Stocker les totaux pour la recherche
-                for (const fileKey in response) {
-                    const fileData = response[fileKey];
-                    if (!fileData.error && fileData.productTotals) {
-                        for (const sheetName in fileData.productTotals) {
-                            const fileSheetKey = `${fileKey}_${sheetName}`;
-                            allProductTotals[fileSheetKey] = fileData.productTotals[sheetName];
-                        }
-                    }
-                }
+                // Extraire les sites et leurs items associés
+                const siteData = extractSiteData(response);
+                allSites = siteData.sites;
+                allItemsBySite = siteData.itemsBySite;
 
+                // Remplir le sélecteur de sites
+                populateSiteSelect(allSites);
+
+                // Rendre les données Excel
                 document.getElementById('excel-data').innerHTML = renderExcelFiles(response);
 
                 // Configuration des gestionnaires d'événements après le rendu
-                setupToggleHandlers();
+                setupEventHandlers();
             })
             .catch(error => {
                 document.getElementById('loading').style.display = 'none';
