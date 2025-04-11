@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Affichage du fichier Excel</title>
+    <title>Affichage des fichiers Excel</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -11,6 +11,10 @@
         }
         h1 {
             color: #333;
+        }
+        h2 {
+            color: #555;
+            margin-top: 30px;
         }
         table {
             border-collapse: collapse;
@@ -40,7 +44,7 @@
             margin: 20px;
             font-style: italic;
         }
-        #error {
+        .error {
             color: red;
             font-weight: bold;
             display: none;
@@ -52,6 +56,19 @@
         }
         .sheet-container {
             margin-bottom: 40px;
+        }
+        .file-container {
+            margin-bottom: 60px;
+            padding-bottom: 20px;
+            border-bottom: 3px dashed #ccc;
+        }
+        .file-title {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            font-weight: bold;
+            border-left: 5px solid #4CAF50;
         }
         /* Styles pour la recherche de produit */
         .search-container {
@@ -91,23 +108,35 @@
     </style>
 </head>
 <body>
-<h1>Affichage du fichier Excel</h1>
+<h1>Affichage des fichiers Excel</h1>
 
 <!-- Conteneur pour la recherche de produit -->
 <div class="search-container">
-    <input type="text" id="product-search" class="search-input" placeholder="Nom du produit...">
-    <button id="search-button" class="search-button">Rechercher</button>
+    <div style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center;">
+        <div>
+            <label for="product-search">Nom du produit:</label>
+            <input type="text" id="product-search" class="search-input" placeholder="Nom du produit...">
+        </div>
+
+        <div>
+            <label for="weight-search">Poids:</label>
+            <input type="number" id="weight-search" class="search-input" placeholder="Poids...">
+        </div>
+
+        <button id="search-button" class="search-button">Rechercher</button>
+    </div>
+
     <div id="product-result"></div>
 </div>
 
 <div id="loading">Chargement des données Excel...</div>
-<div id="error"></div>
 <div id="excel-data"></div>
 
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Variable pour stocker les données des produits
+        // Variables pour stocker les données
         let allProductTotals = {};
+        let filesDataGlobal = {};
 
         // Fonction pour échapper le HTML
         function escapeHtml(unsafe) {
@@ -127,9 +156,10 @@
             }).format(number);
         }
 
-        // Fonction pour créer les tableaux HTML
-        function renderExcelData(data, productTotals) {
+        // Fonction pour créer les tableaux HTML pour chaque feuille
+        function renderSheetData(data, productTotals, filePath) {
             let html = '';
+            const isWeightFile = filePath.includes('test2');
 
             for (const sheetName in data) {
                 const sheetData = data[sheetName];
@@ -146,8 +176,11 @@
                     for (const headerCell of sheetData[0]) {
                         html += `<th>${escapeHtml(headerCell || '')}</th>`;
                     }
-                    // Ajouter une colonne pour le total
-                    html += `<th>Total</th>`;
+
+                    // Ajouter une colonne pour le total uniquement pour le premier fichier (test.xlsx)
+                    if (!isWeightFile) {
+                        html += `<th>Total</th>`;
+                    }
                     html += '</tr>';
 
                     // Données
@@ -157,9 +190,11 @@
                             html += `<td>${escapeHtml(cell || '')}</td>`;
                         }
 
-                        // Afficher le total de la ligne
-                        const rowTotal = sheetProductTotals.rows[i] || 0;
-                        html += `<td class="total-cell">${formatNumber(rowTotal)} €</td>`;
+                        // Afficher le total uniquement pour le premier fichier
+                        if (!isWeightFile) {
+                            const rowValue = sheetProductTotals.rows[i] || 0;
+                            html += `<td class="total-cell">${formatNumber(rowValue)} €</td>`;
+                        }
 
                         html += '</tr>';
                     }
@@ -175,67 +210,281 @@
             return html;
         }
 
-        // Fonction pour rechercher un produit
-        function searchProduct(productName) {
+        // Fonction pour créer l'affichage complet des fichiers
+        function renderExcelFiles(filesData) {
+            let html = '';
+
+            // Parcourir chaque fichier
+            for (const fileKey in filesData) {
+                const fileData = filesData[fileKey];
+
+                if (fileData.error) {
+                    html += `<div class="file-container">`;
+                    html += `<div class="file-title">Fichier: ${escapeHtml(fileData.filePath || fileKey)}</div>`;
+                    html += `<div class="error" style="display:block;">${escapeHtml(fileData.error)}</div>`;
+                    html += `</div>`;
+                    continue;
+                }
+
+                html += `<div class="file-container">`;
+                html += `<div class="file-title">Fichier: ${escapeHtml(fileData.filePath)}</div>`;
+
+                // Ajouter les données de chaque feuille du fichier
+                html += renderSheetData(fileData.data, fileData.productTotals, fileData.filePath);
+
+                html += `</div>`;
+
+                // Stocker les totaux des produits pour la recherche
+                for (const sheetName in fileData.productTotals) {
+                    const fileSheetKey = `${fileKey}_${sheetName}`;
+                    allProductTotals[fileSheetKey] = fileData.productTotals[sheetName];
+                }
+            }
+
+            return html;
+        }
+
+        // Fonction de recherche unifiée pour produit et poids
+        function searchProducts() {
             const resultDiv = document.getElementById('product-result');
             resultDiv.style.display = 'block';
 
-            // Recherche insensible à la casse mais terme exact
-            const searchTerm = productName.toLowerCase().trim();
-            let found = false;
-            let resultsHtml = '';
+            const productName = document.getElementById('product-search').value.trim().toLowerCase();
+            const weightInput = document.getElementById('weight-search').value.trim();
 
-            // Parcourir toutes les feuilles et leurs produits
-            for (const sheetName in allProductTotals) {
-                const sheetProducts = allProductTotals[sheetName].products || {};
+            // Vérifier qu'au moins un critère est fourni
+            if (productName === '' && weightInput === '') {
+                resultDiv.innerHTML = `<p class="no-result">Veuillez entrer au moins un critère de recherche</p>`;
+                return;
+            }
 
-                for (const [produit, total] of Object.entries(sheetProducts)) {
-                    // Vérifier si le terme correspond exactement (insensible à la casse)
-                    if (produit.toLowerCase() === searchTerm) {
-                        if (!found) {
-                            resultsHtml = `
-                                <table>
-                                    <tr>
-                                        <th>Produit</th>
-                                        <th>Prix total</th>
-                                    </tr>
-                            `;
-                            found = true;
+            // Convertir le poids en nombre si fourni
+            const searchWeight = weightInput ? parseFloat(weightInput) : null;
+            if (weightInput !== '' && isNaN(searchWeight)) {
+                resultDiv.innerHTML = `<p class="no-result">Veuillez entrer un poids valide</p>`;
+                return;
+            }
+
+            // Tableaux pour stocker les résultats
+            let productsFoundByName = [];
+            let productsFoundByWeight = [];
+            let finalResults = [];
+
+            // 1. Recherche par nom de produit dans test.xlsx
+            if (productName !== '') {
+                for (const sheetKey in allProductTotals) {
+                    if (sheetKey.startsWith('file1_')) {
+                        const sheetProducts = allProductTotals[sheetKey].products || {};
+
+                        for (const [produit, total] of Object.entries(sheetProducts)) {
+                            if (produit.toLowerCase() === productName) {
+                                productsFoundByName.push({
+                                    name: produit,
+                                    price: total,
+                                    weight: null // On ne connaît pas encore le poids
+                                });
+                            }
                         }
-
-                        resultsHtml += `
-                            <tr>
-                                <td>${escapeHtml(produit)}</td>
-                                <td class="total-cell">${formatNumber(total)} €</td>
-                            </tr>
-                        `;
                     }
                 }
             }
 
-            if (found) {
+            // 2. Recherche par poids dans test2.xlsx
+            if (searchWeight !== null) {
+                const weightFileData = filesDataGlobal.file2?.data || {};
+
+                for (const sheetName in weightFileData) {
+                    const sheetData = weightFileData[sheetName];
+
+                    if (sheetData && sheetData.length > 1) {
+                        // Trouver les colonnes du produit et du poids
+                        const headers = sheetData[0];
+                        let produitCol = -1;
+                        let poidsCol = -1;
+
+                        headers.forEach((header, index) => {
+                            const headerLower = String(header).toLowerCase();
+                            if (headerLower.includes('produit') || headerLower.includes('product')) {
+                                produitCol = index;
+                            }
+                            if (headerLower.includes('poid') || headerLower.includes('weight')) {
+                                poidsCol = index;
+                            }
+                        });
+
+                        // Si on ne trouve pas les colonnes et qu'il y a au moins 2 colonnes, utiliser les deux premières
+                        if (produitCol === -1 && poidsCol === -1 && headers.length >= 2) {
+                            produitCol = 0;
+                            poidsCol = 1;
+                        }
+
+                        // Parcourir les lignes pour trouver les produits avec le poids recherché
+                        for (let i = 1; i < sheetData.length; i++) {
+                            const row = sheetData[i];
+                            if (row.length > Math.max(produitCol, poidsCol)) {
+                                const produit = row[produitCol];
+                                const poids = parseFloat(row[poidsCol]);
+
+                                if (!isNaN(poids) && Math.abs(poids - searchWeight) < 0.0001) {
+                                    productsFoundByWeight.push({
+                                        name: produit,
+                                        price: null, // On ne connaît pas encore le prix
+                                        weight: poids
+                                    });
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 3. Combiner les résultats selon les critères fournis
+            if (productName !== '' && searchWeight !== null) {
+                // Les deux critères sont fournis, on cherche les correspondances exactes
+                for (const prodByName of productsFoundByName) {
+                    for (const prodByWeight of productsFoundByWeight) {
+                        if (prodByName.name.toLowerCase() === prodByWeight.name.toLowerCase()) {
+                            finalResults.push({
+                                name: prodByName.name,
+                                price: prodByName.price,
+                                weight: prodByWeight.weight
+                            });
+                        }
+                    }
+                }
+            } else if (productName !== '') {
+                // Seulement recherche par nom
+                // Pour chaque produit trouvé par nom, chercher son poids dans test2
+                for (const prod of productsFoundByName) {
+                    const weightFileData = filesDataGlobal.file2?.data || {};
+
+                    let foundWeight = false;
+                    for (const sheetName in weightFileData) {
+                        const sheetData = weightFileData[sheetName];
+
+                        if (sheetData && sheetData.length > 1) {
+                            const headers = sheetData[0];
+                            let produitCol = -1;
+                            let poidsCol = -1;
+
+                            headers.forEach((header, index) => {
+                                const headerLower = String(header).toLowerCase();
+                                if (headerLower.includes('produit') || headerLower.includes('product')) {
+                                    produitCol = index;
+                                }
+                                if (headerLower.includes('poid') || headerLower.includes('weight')) {
+                                    poidsCol = index;
+                                }
+                            });
+
+                            if (produitCol === -1 && poidsCol === -1 && headers.length >= 2) {
+                                produitCol = 0;
+                                poidsCol = 1;
+                            }
+
+                            for (let i = 1; i < sheetData.length; i++) {
+                                const row = sheetData[i];
+                                if (row.length > Math.max(produitCol, poidsCol)) {
+                                    const produit = row[produitCol];
+                                    const poids = parseFloat(row[poidsCol]);
+
+                                    if (produit.toLowerCase() === prod.name.toLowerCase()) {
+                                        prod.weight = poids;
+                                        foundWeight = true;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+
+                        if (foundWeight) break;
+                    }
+
+                    finalResults.push(prod);
+                }
+            } else if (searchWeight !== null) {
+                // Seulement recherche par poids
+                // Pour chaque produit trouvé par poids, chercher son prix dans test
+                for (const prod of productsFoundByWeight) {
+                    for (const sheetKey in allProductTotals) {
+                        if (sheetKey.startsWith('file1_')) {
+                            const sheetProducts = allProductTotals[sheetKey].products || {};
+
+                            if (prod.name.toLowerCase() in sheetProducts ||
+                                Object.keys(sheetProducts).some(p => p.toLowerCase() === prod.name.toLowerCase())) {
+
+                                // Trouver la clé exacte (insensible à la casse)
+                                const matchedProduct = Object.keys(sheetProducts).find(
+                                    p => p.toLowerCase() === prod.name.toLowerCase()
+                                );
+
+                                if (matchedProduct) {
+                                    prod.price = sheetProducts[matchedProduct];
+                                }
+                            }
+                        }
+                    }
+
+                    finalResults.push(prod);
+                }
+            }
+
+            // 4. Afficher les résultats
+            if (finalResults.length > 0) {
+                resultsHtml = `
+                    <table>
+                        <tr>
+                            <th>Produit</th>
+                            <th>Poids</th>
+                            <th>Prix total</th>
+                        </tr>
+                `;
+
+                for (const result of finalResults) {
+                    const productName = escapeHtml(result.name);
+                    const weightDisplay = result.weight !== null ? formatNumber(result.weight) + " kg" : "Non disponible";
+                    const priceDisplay = result.price !== null ? formatNumber(result.price) + " €" : "Non disponible";
+
+                    resultsHtml += `
+                        <tr>
+                            <td>${productName}</td>
+                            <td>${weightDisplay}</td>
+                            <td class="total-cell">${priceDisplay}</td>
+                        </tr>
+                    `;
+                }
+
                 resultsHtml += `</table>`;
                 resultDiv.innerHTML = resultsHtml;
             } else {
-                resultDiv.innerHTML = `<p class="no-result">Aucun produit trouvé pour "${escapeHtml(productName)}"</p>`;
+                let message = "Aucun produit ne correspond aux critères";
+                if (productName !== '') {
+                    message += ` pour le nom "${escapeHtml(productName)}"`;
+                }
+                if (searchWeight !== null) {
+                    message += productName !== '' ? " et" : " pour";
+                    message += ` le poids de ${formatNumber(searchWeight)} kg`;
+                }
+
+                resultDiv.innerHTML = `<p class="no-result">${message}</p>`;
             }
         }
 
         // Gérer le clic sur le bouton de recherche
         document.getElementById('search-button').addEventListener('click', function() {
-            const productName = document.getElementById('product-search').value;
-            if (productName.trim() !== '') {
-                searchProduct(productName);
+            searchProducts();
+        });
+
+        // Gérer la touche Entrée dans les champs de recherche
+        document.getElementById('product-search').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                searchProducts();
             }
         });
 
-        // Gérer la touche Entrée dans le champ de recherche
-        document.getElementById('product-search').addEventListener('keypress', function(e) {
+        document.getElementById('weight-search').addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
-                const productName = this.value;
-                if (productName.trim() !== '') {
-                    searchProduct(productName);
-                }
+                searchProducts();
             }
         });
 
@@ -250,23 +499,31 @@
             .then(response => {
                 document.getElementById('loading').style.display = 'none';
 
-                if (response.error) {
-                    document.getElementById('error').style.display = 'block';
-                    document.getElementById('error').textContent = response.error;
-                } else {
-                    // Stocker les données pour la recherche
-                    allProductTotals = response.productTotals;
+                // Stocker les données pour la recherche
+                filesDataGlobal = response;
 
-                    document.getElementById('excel-data').innerHTML = renderExcelData(
-                        response.data,
-                        response.productTotals
-                    );
+                // Stocker les totaux pour la recherche
+                for (const fileKey in response) {
+                    const fileData = response[fileKey];
+                    if (!fileData.error && fileData.productTotals) {
+                        for (const sheetName in fileData.productTotals) {
+                            const fileSheetKey = `${fileKey}_${sheetName}`;
+                            allProductTotals[fileSheetKey] = fileData.productTotals[sheetName];
+                        }
+                    }
                 }
+
+                document.getElementById('excel-data').innerHTML = renderExcelFiles(response);
             })
             .catch(error => {
                 document.getElementById('loading').style.display = 'none';
-                document.getElementById('error').style.display = 'block';
-                document.getElementById('error').textContent = 'Erreur: ' + error.message;
+
+                const errorDiv = document.createElement('div');
+                errorDiv.className = 'error';
+                errorDiv.style.display = 'block';
+                errorDiv.textContent = 'Erreur: ' + error.message;
+
+                document.getElementById('excel-data').appendChild(errorDiv);
             });
     });
 </script>

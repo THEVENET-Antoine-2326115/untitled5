@@ -7,9 +7,11 @@ class ExcelProcessor
     private $excelReader;
     private $data = [];
     private $productTotals = [];
+    private $filePath;
 
     public function __construct($filePath)
     {
+        $this->filePath = $filePath;
         $this->excelReader = new ExcelReader($filePath);
     }
 
@@ -20,15 +22,25 @@ class ExcelProcessor
             return false;
         }
 
-        // Récupération des données et calcul des totaux par produit
+        // Récupération des données
         $this->data = $this->excelReader->getData();
 
+        // Déterminer le type de fichier
+        $isWeightFile = strpos($this->filePath, 'test2') !== false;
+
+        // Pour le fichier test2, nous n'avons pas besoin de calculer les totaux
+        if ($isWeightFile) {
+            return true;
+        }
+
+        // Calcul des totaux par produit uniquement pour test.xlsx
         foreach ($this->data as $sheetName => $rows) {
-            if (count($rows) <= 1) {
-                continue; // Ignorer les feuilles vides ou avec seulement des en-têtes
+            if (count($rows) <= 0) {
+                continue; // Ignorer les feuilles vides
             }
 
             $headers = $rows[0];
+
             $prixCol = $this->findColumn($headers, ['prix', 'price']);
             $qteCol = $this->findColumn($headers, ['quantité', 'quantity', 'qté', 'qty']);
             $produitCol = $this->findColumn($headers, ['produit', 'product', 'article', 'item', 'designation', 'description']);
@@ -54,7 +66,7 @@ class ExcelProcessor
                 $total = ($prix * $qte) + $livraison;
                 $this->productTotals[$sheetName]['rows'][$i] = $total;
 
-                // Stockage du prix total par produit - simplifié pour n'avoir que le total
+                // Stockage du prix total par produit
                 if (!isset($this->productTotals[$sheetName]['products'][$produit])) {
                     $this->productTotals[$sheetName]['products'][$produit] = $total;
                 } else {
@@ -108,5 +120,9 @@ class ExcelProcessor
     {
         return $this->productTotals;
     }
-}
 
+    public function getFilePath()
+    {
+        return $this->filePath;
+    }
+}
