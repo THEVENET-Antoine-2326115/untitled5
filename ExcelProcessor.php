@@ -26,14 +26,14 @@ class ExcelProcessor
         $this->data = $this->excelReader->getData();
 
         // Déterminer le type de fichier
-        $isWeightFile = strpos($this->filePath, 'test2') !== false;
+        $isWeightFile = strpos($this->filePath, 'ref') !== false;
 
-        // Pour le fichier test2, nous n'avons pas besoin de calculer les totaux
+        // Pour le fichier ref.xlsm, nous n'avons pas besoin de calculer les totaux
         if ($isWeightFile) {
             return true;
         }
 
-        // Calcul des totaux par produit uniquement pour test.xlsx
+        // Calcul des totaux par produit uniquement pour BPU_vrai.xlsx
         foreach ($this->data as $sheetName => $rows) {
             if (count($rows) <= 0) {
                 continue; // Ignorer les feuilles vides
@@ -126,5 +126,3 @@ class ExcelProcessor
         return $this->filePath;
     }
 }
-
-//C LA BRANCHE OFFICIEL

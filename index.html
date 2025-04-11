@@ -38,6 +38,17 @@
             color: #333;
             border-bottom: 2px solid #333;
             padding-bottom: 5px;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .sheet-title .toggle-icon {
+            font-size: 18px;
+            transition: transform 0.3s;
+        }
+        .sheet-title .toggle-icon.collapsed {
+            transform: rotate(-90deg);
         }
         #loading {
             text-align: center;
@@ -57,6 +68,10 @@
         .sheet-container {
             margin-bottom: 40px;
         }
+        .sheet-content {
+            display: none;
+            transition: height 0.3s ease;
+        }
         .file-container {
             margin-bottom: 60px;
             padding-bottom: 20px;
@@ -74,20 +89,14 @@
             justify-content: space-between;
             align-items: center;
         }
-        .file-title:hover {
-            background-color: #e9e9e9;
-        }
         .file-content {
-            display: none; /* Masqué par défaut */
-        }
-        .toggle-icon {
-            font-size: 1.2em;
-            font-weight: bold;
+            display: none;
+            transition: height 0.3s ease;
         }
         /* Styles pour la recherche de produit */
         .search-container {
             margin: 20px 0;
-            padding: 15px;
+            padding: 10px;
             background-color: #f9f9f9;
             border: 1px solid #ddd;
             border-radius: 5px;
@@ -119,6 +128,20 @@
             color: #d9534f;
             font-style: italic;
         }
+        .toggle-all-btn {
+            margin: 10px 0;
+            padding: 8px 15px;
+            background-color: #2196F3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        .toggle-all-btn:hover {
+            background-color: #0b7dda;
+        }
     </style>
 </head>
 <body>
@@ -143,28 +166,19 @@
     <div id="product-result"></div>
 </div>
 
+<div class="toggle-controls">
+    <button id="toggle-all-btn" class="toggle-all-btn">Afficher tous les tableaux</button>
+</div>
+
 <div id="loading">Chargement des données Excel...</div>
 <div id="excel-data"></div>
 
 <script>
-    // Fonction pour basculer l'affichage du contenu d'un fichier
-    function toggleFileContent(fileId) {
-        const content = document.getElementById(fileId);
-        const toggleIcon = content.previousElementSibling.querySelector('.toggle-icon');
-
-        if (content.style.display === 'block') {
-            content.style.display = 'none';
-            toggleIcon.textContent = '+';
-        } else {
-            content.style.display = 'block';
-            toggleIcon.textContent = '-';
-        }
-    }
-
     document.addEventListener('DOMContentLoaded', function() {
         // Variables pour stocker les données
         let allProductTotals = {};
         let filesDataGlobal = {};
+        let allTablesVisible = false;
 
         // Fonction pour échapper le HTML
         function escapeHtml(unsafe) {
@@ -187,15 +201,21 @@
         // Fonction pour créer les tableaux HTML pour chaque feuille
         function renderSheetData(data, productTotals, filePath) {
             let html = '';
-            const isWeightFile = filePath.includes('test2');
+            const isWeightFile = filePath.includes('ref');
 
             for (const sheetName in data) {
                 const sheetData = data[sheetName];
                 const sheetProductTotals = productTotals[sheetName] || { products: {}, rows: {} };
+                const sheetId = `sheet-${filePath.replace(/\./g, '-')}-${sheetName.replace(/\s+/g, '-')}`;
+                const contentId = `content-${sheetId}`;
 
                 html += `<div class="sheet-container">`;
-                html += `<h2 class="sheet-title">Feuille: ${escapeHtml(sheetName)}</h2>`;
+                html += `<h2 class="sheet-title" data-target="${contentId}">
+                            Feuille: ${escapeHtml(sheetName)}
+                            <span class="toggle-icon collapsed">▼</span>
+                        </h2>`;
 
+                html += `<div id="${contentId}" class="sheet-content">`;
                 if (sheetData && sheetData.length > 0) {
                     html += '<table>';
 
@@ -205,7 +225,7 @@
                         html += `<th>${escapeHtml(headerCell || '')}</th>`;
                     }
 
-                    // Ajouter une colonne pour le total uniquement pour le premier fichier (test.xlsx)
+                    // Ajouter une colonne pour le total uniquement pour le premier fichier (BPU_vrai.xlsx)
                     if (!isWeightFile) {
                         html += `<th>Total</th>`;
                     }
@@ -231,8 +251,8 @@
                 } else {
                     html += '<p>Aucune donnée dans cette feuille</p>';
                 }
-
-                html += `</div>`;
+                html += `</div>`; // Fin de sheet-content
+                html += `</div>`; // Fin de sheet-container
             }
 
             return html;
@@ -241,37 +261,38 @@
         // Fonction pour créer l'affichage complet des fichiers
         function renderExcelFiles(filesData) {
             let html = '';
-            let fileIndex = 0;
 
             // Parcourir chaque fichier
             for (const fileKey in filesData) {
-                fileIndex++;
                 const fileData = filesData[fileKey];
-                const fileId = `file-${fileIndex}`;
+                const fileId = `file-${fileKey}`;
+                const contentId = `content-${fileId}`;
 
                 if (fileData.error) {
                     html += `<div class="file-container">`;
-                    html += `<div class="file-title" onclick="toggleFileContent('${fileId}')">
-                              <span>Fichier: ${escapeHtml(fileData.filePath || fileKey)}</span>
-                              <span class="toggle-icon">+</span>
+                    html += `<div class="file-title" data-target="${contentId}">
+                                Fichier: ${escapeHtml(fileData.filePath || fileKey)}
+                                <span class="toggle-icon collapsed">▼</span>
                             </div>`;
-                    html += `<div id="${fileId}" class="file-content">`;
+                    html += `<div id="${contentId}" class="file-content">`;
                     html += `<div class="error" style="display:block;">${escapeHtml(fileData.error)}</div>`;
-                    html += `</div></div>`;
+                    html += `</div>`;
+                    html += `</div>`;
                     continue;
                 }
 
                 html += `<div class="file-container">`;
-                html += `<div class="file-title" onclick="toggleFileContent('${fileId}')">
-                          <span>Fichier: ${escapeHtml(fileData.filePath)}</span>
-                          <span class="toggle-icon">+</span>
+                html += `<div class="file-title" data-target="${contentId}">
+                            Fichier: ${escapeHtml(fileData.filePath)}
+                            <span class="toggle-icon collapsed">▼</span>
                         </div>`;
-                html += `<div id="${fileId}" class="file-content">`;
 
+                html += `<div id="${contentId}" class="file-content">`;
                 // Ajouter les données de chaque feuille du fichier
                 html += renderSheetData(fileData.data, fileData.productTotals, fileData.filePath);
+                html += `</div>`;
 
-                html += `</div></div>`;
+                html += `</div>`;
 
                 // Stocker les totaux des produits pour la recherche
                 for (const sheetName in fileData.productTotals) {
@@ -309,7 +330,7 @@
             let productsFoundByWeight = [];
             let finalResults = [];
 
-            // 1. Recherche par nom de produit dans test.xlsx
+            // 1. Recherche par nom de produit dans BPU_vrai.xlsx
             if (productName !== '') {
                 for (const sheetKey in allProductTotals) {
                     if (sheetKey.startsWith('file1_')) {
@@ -328,7 +349,7 @@
                 }
             }
 
-            // 2. Recherche par poids dans test2.xlsx
+            // 2. Recherche par poids dans ref.xlsx
             if (searchWeight !== null) {
                 const weightFileData = filesDataGlobal.file2?.data || {};
 
@@ -393,7 +414,7 @@
                 }
             } else if (productName !== '') {
                 // Seulement recherche par nom
-                // Pour chaque produit trouvé par nom, chercher son poids dans test2
+                // Pour chaque produit trouvé par nom, chercher son poids dans ref.xlsx
                 for (const prod of productsFoundByName) {
                     const weightFileData = filesDataGlobal.file2?.data || {};
 
@@ -443,7 +464,7 @@
                 }
             } else if (searchWeight !== null) {
                 // Seulement recherche par poids
-                // Pour chaque produit trouvé par poids, chercher son prix dans test
+                // Pour chaque produit trouvé par poids, chercher son prix dans BPU_vrai
                 for (const prod of productsFoundByWeight) {
                     for (const sheetKey in allProductTotals) {
                         if (sheetKey.startsWith('file1_')) {
@@ -527,6 +548,85 @@
             }
         });
 
+        // Gestion des boutons d'affichage/masquage
+        function setupToggleHandlers() {
+            // Gestionnaire pour les titres de fichiers
+            document.querySelectorAll('.file-title').forEach(fileTitle => {
+                fileTitle.addEventListener('click', function() {
+                    const contentId = this.getAttribute('data-target');
+                    const contentElement = document.getElementById(contentId);
+                    const iconElement = this.querySelector('.toggle-icon');
+
+                    if (contentElement.style.display === 'block') {
+                        contentElement.style.display = 'none';
+                        iconElement.classList.add('collapsed');
+                    } else {
+                        contentElement.style.display = 'block';
+                        iconElement.classList.remove('collapsed');
+                    }
+                });
+            });
+
+            // Gestionnaire pour les titres de feuilles
+            document.querySelectorAll('.sheet-title').forEach(sheetTitle => {
+                sheetTitle.addEventListener('click', function() {
+                    const contentId = this.getAttribute('data-target');
+                    const contentElement = document.getElementById(contentId);
+                    const iconElement = this.querySelector('.toggle-icon');
+
+                    if (contentElement.style.display === 'block') {
+                        contentElement.style.display = 'none';
+                        iconElement.classList.add('collapsed');
+                    } else {
+                        contentElement.style.display = 'block';
+                        iconElement.classList.remove('collapsed');
+                    }
+                });
+            });
+
+            // Gestionnaire pour le bouton "Afficher/Masquer tous"
+            document.getElementById('toggle-all-btn').addEventListener('click', function() {
+                const fileContents = document.querySelectorAll('.file-content');
+                const sheetContents = document.querySelectorAll('.sheet-content');
+                const fileIcons = document.querySelectorAll('.file-title .toggle-icon');
+                const sheetIcons = document.querySelectorAll('.sheet-title .toggle-icon');
+
+                if (allTablesVisible) {
+                    // Masquer tous les tableaux
+                    fileContents.forEach(content => {
+                        content.style.display = 'none';
+                    });
+                    sheetContents.forEach(content => {
+                        content.style.display = 'none';
+                    });
+                    fileIcons.forEach(icon => {
+                        icon.classList.add('collapsed');
+                    });
+                    sheetIcons.forEach(icon => {
+                        icon.classList.add('collapsed');
+                    });
+                    this.textContent = 'Afficher tous les tableaux';
+                } else {
+                    // Afficher tous les tableaux
+                    fileContents.forEach(content => {
+                        content.style.display = 'block';
+                    });
+                    sheetContents.forEach(content => {
+                        content.style.display = 'block';
+                    });
+                    fileIcons.forEach(icon => {
+                        icon.classList.remove('collapsed');
+                    });
+                    sheetIcons.forEach(icon => {
+                        icon.classList.remove('collapsed');
+                    });
+                    this.textContent = 'Masquer tous les tableaux';
+                }
+
+                allTablesVisible = !allTablesVisible;
+            });
+        }
+
         // Récupérer les données Excel via AJAX
         fetch('get_excel_data.php')
             .then(response => {
@@ -553,6 +653,9 @@
                 }
 
                 document.getElementById('excel-data').innerHTML = renderExcelFiles(response);
+
+                // Configuration des gestionnaires d'événements après le rendu
+                setupToggleHandlers();
             })
             .catch(error => {
                 document.getElementById('loading').style.display = 'none';
