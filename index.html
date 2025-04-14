@@ -708,15 +708,25 @@
             // Créer un Set pour éviter les doublons de descriptions
             const reperes = new Set();
 
+            // Mots à bannir
+            const motsABannir = ['entretoise', 'capot', 'attache'];
+
             // Ajouter chaque description unique qui contient le mot "Panneaux" (ou variations)
-            // et qui ne contient pas le mot "entretoise"
+            // et qui ne contient aucun des mots bannis
             items.forEach(item => {
                 if (item.description) {
                     const description = item.description.toLowerCase();
-                    if ((description.includes('panneau') ||
-                            description.includes('panneaux') ||
-                            description.includes('pannaux')) &&
-                        !description.includes('entretoise')) {
+
+                    // Vérifier si la description contient un mot lié à "panneau"
+                    const contientPanneau = description.includes('panneau') ||
+                        description.includes('panneaux') ||
+                        description.includes('pannaux');
+
+                    // Vérifier si la description contient un des mots bannis
+                    const contientMotBanni = motsABannir.some(mot => description.includes(mot));
+
+                    // Ajouter seulement si c'est un panneau sans mot banni
+                    if (contientPanneau && !contientMotBanni) {
                         reperes.add(item.description);
                     }
                 }
