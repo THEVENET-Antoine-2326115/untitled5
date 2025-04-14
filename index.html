@@ -281,15 +281,6 @@
             display: none;
         }
 
-        #temp-result {
-            margin-top: 20px;
-            margin-bottom: 30px;
-            padding: 15px;
-            border: 1px dashed #2196F3;
-            border-radius: 5px;
-            background-color: #f0f8ff;
-        }
-
         #site-result {
             margin-top: 30px;
             padding: 15px;
@@ -365,7 +356,6 @@
         </div>
         <button id="calculate-button" class="search-button">Calculer</button>
     </div>
-    <div id="temp-result" style="display: none;"></div>
     <div id="site-result" style="display: none;"></div>
 </div>
 
@@ -861,10 +851,10 @@
 
         // Fonction de calcul avec quantité
         function calculateWithQuantity() {
-            const tempResultDiv = document.getElementById('temp-result');
-            const finalResultDiv = document.getElementById('site-result');
+            const resultDiv = document.getElementById('site-result');
             const quantityInput = document.getElementById('quantity-input');
             const selectedRepere = document.getElementById('repere-select').value;
+            const selectedSite = document.getElementById('site-select').value;
 
             // Vérifier que la quantité est valide
             const quantity = parseInt(quantityInput.value, 10);
@@ -887,84 +877,91 @@
             // Multiplier par la quantité
             const finalAmount = totalAmount * quantity;
 
-            // Préparer le HTML des résultats temporaires
-            let tempResultsHtml = `
-        <div class="result-title">Calcul temporaire pour ${quantity} ${escapeHtml(selectedRepere)}</div>
-        <table class="result-table">
-            <tr>
-                <th>Description</th>
-                <th>Quantité</th>
-                <th>Sous-total unitaire</th>
-                <th>Sous-total</th>
-            </tr>
-            <tr>
-                <td>${escapeHtml(selectedRepere)}</td>
-                <td>${quantity}</td>
-                <td class="price-cell">${formatNumber(totalAmount)} €</td>
-                <td class="price-cell" style="background-color: #e6f2ff;">${formatNumber(finalAmount)} €</td>
-            </tr>
-        </table>
-    `;
-
-            // Afficher les résultats temporaires
-            tempResultDiv.innerHTML = tempResultsHtml;
-            tempResultDiv.style.display = 'block';
-
             // Si c'est la première fois que l'on calcule un résultat final
             if (!window.cumulativeResults) {
                 window.cumulativeResults = [];
             }
 
+            // Générer un ID unique pour cette entrée
+            const entryId = 'result-' + Date.now();
+
             // Ajouter ce résultat au tableau cumulé
             window.cumulativeResults.push({
+                id: entryId,
+                site: selectedSite,
                 description: selectedRepere,
                 quantity: quantity,
-                unitPrice: totalAmount,
                 totalPrice: finalAmount
             });
+
+            // Mettre à jour l'affichage du tableau
+            updateResultsTable();
+        }
+
+// Fonction pour mettre à jour l'affichage du tableau de résultats
+        function updateResultsTable() {
+            const resultDiv = document.getElementById('site-result');
+
+            // Si aucun résultat, masquer le tableau
+            if (!window.cumulativeResults || window.cumulativeResults.length === 0) {
+                resultDiv.style.display = 'none';
+                return;
+            }
 
             // Préparer le HTML des résultats cumulés
             let finalResultsHtml = `
         <div class="result-title">Récapitulatif total</div>
         <table class="result-table">
             <tr>
+                <th>Site</th>
                 <th>Description</th>
                 <th>Quantité</th>
-                <th>Sous-total</th>
+                <th>Action</th>
             </tr>
     `;
 
-            let grandTotal = 0;
             // Afficher tous les items du tableau cumulatif
             for (const result of window.cumulativeResults) {
                 finalResultsHtml += `
-            <tr>
+            <tr id="row-${result.id}">
+                <td>${escapeHtml(result.site)}</td>
                 <td>${escapeHtml(result.description)}</td>
                 <td>${result.quantity}</td>
-                <td class="price-cell">${formatNumber(result.totalPrice)} €</td>
+                <td>
+                    <button class="delete-row-btn" data-id="${result.id}"
+                            style="background-color: #f44336; color: white; border: none;
+                                   padding: 5px 10px; border-radius: 3px; cursor: pointer;">
+                        Supprimer
+                    </button>
+                </td>
             </tr>
         `;
-                grandTotal += result.totalPrice;
             }
 
             finalResultsHtml += `
-            <tr>
-                <td colspan="2" style="text-align: right; font-weight: bold;">Total global</td>
-                <td class="price-cell" style="background-color: #e6f2ff;">${formatNumber(grandTotal)} €</td>
-            </tr>
         </table>
-        <button id="reset-results" class="search-button" style="margin-top: 15px; background-color: #f44336;">Réinitialiser</button>
+        <button id="reset-results" class="search-button" style="margin-top: 15px; background-color: #f44336;">Tout réinitialiser</button>
     `;
 
             // Afficher les résultats finaux
-            finalResultDiv.innerHTML = finalResultsHtml;
-            finalResultDiv.style.display = 'block';
+            resultDiv.innerHTML = finalResultsHtml;
+            resultDiv.style.display = 'block';
 
-            // Ajouter un gestionnaire d'événement pour le bouton de réinitialisation
+            // Ajouter un gestionnaire d'événement pour le bouton de réinitialisation complète
             document.getElementById('reset-results').addEventListener('click', function() {
                 window.cumulativeResults = [];
-                finalResultDiv.style.display = 'none';
-                tempResultDiv.style.display = 'none';
+                updateResultsTable();
+            });
+
+            // Ajouter des gestionnaires d'événement pour chaque bouton de suppression
+            document.querySelectorAll('.delete-row-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const idToRemove = this.getAttribute('data-id');
+                    // Filtrer pour retirer l'élément correspondant à l'ID
+                    window.cumulativeResults = window.cumulativeResults.filter(item => item.id !== idToRemove);
+                    // Mettre à jour l'affichage
+                    updateResultsTable();
+                });
             });
         }
 
