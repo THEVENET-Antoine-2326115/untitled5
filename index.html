@@ -280,6 +280,39 @@
             text-align: center;
             display: none;
         }
+
+        #temp-result {
+            margin-top: 20px;
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px dashed #2196F3;
+            border-radius: 5px;
+            background-color: #f0f8ff;
+        }
+
+        #site-result {
+            margin-top: 30px;
+            padding: 15px;
+            border: 1px solid #4CAF50;
+            border-radius: 5px;
+            background-color: #f7fff7;
+        }
+
+        .reset-button {
+            margin-top: 15px;
+            padding: 10px 20px;
+            background-color: #f44336;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+
+        .reset-button:hover {
+            background-color: #d32f2f;
+        }
+
     </style>
 </head>
 <body>
@@ -332,6 +365,7 @@
         </div>
         <button id="calculate-button" class="search-button">Calculer</button>
     </div>
+    <div id="temp-result" style="display: none;"></div>
     <div id="site-result" style="display: none;"></div>
 </div>
 
@@ -675,12 +709,14 @@
             const reperes = new Set();
 
             // Ajouter chaque description unique qui contient le mot "Panneaux" (ou variations)
+            // et qui ne contient pas le mot "entretoise"
             items.forEach(item => {
                 if (item.description) {
                     const description = item.description.toLowerCase();
-                    if (description.includes('panneau') ||
-                        description.includes('panneaux') ||
-                        description.includes('pannaux')) {
+                    if ((description.includes('panneau') ||
+                            description.includes('panneaux') ||
+                            description.includes('pannaux')) &&
+                        !description.includes('entretoise')) {
                         reperes.add(item.description);
                     }
                 }
@@ -689,7 +725,7 @@
             // Convertir en array et trier
             const reperesArray = Array.from(reperes).sort();
 
-            // Si aucun repère contenant "Panneaux" n'est trouvé, masquer le filtre
+            // Si aucun repère correspondant aux critères n'est trouvé, masquer le filtre
             if (reperesArray.length === 0) {
                 repereFilterDiv.style.display = 'none';
                 return;
@@ -815,7 +851,8 @@
 
         // Fonction de calcul avec quantité
         function calculateWithQuantity() {
-            const resultDiv = document.getElementById('site-result');
+            const tempResultDiv = document.getElementById('temp-result');
+            const finalResultDiv = document.getElementById('site-result');
             const quantityInput = document.getElementById('quantity-input');
             const selectedRepere = document.getElementById('repere-select').value;
 
@@ -840,22 +877,85 @@
             // Multiplier par la quantité
             const finalAmount = totalAmount * quantity;
 
-            // Préparer le HTML des résultats
-            let resultsHtml = `
-                <div class="result-title">Sous-total pour ${quantity} ${escapeHtml(selectedRepere)}</div>
-                <table class="result-table">
-                    <tr>
-                        <th>Sous-total</th>
-                    </tr>
-                    <tr>
-                        <td class="price-cell" style="font-size: 1.2em; background-color: #e6f2ff;">${formatNumber(finalAmount)} €</td>
-                    </tr>
-                </table>
-            `;
+            // Préparer le HTML des résultats temporaires
+            let tempResultsHtml = `
+        <div class="result-title">Calcul temporaire pour ${quantity} ${escapeHtml(selectedRepere)}</div>
+        <table class="result-table">
+            <tr>
+                <th>Description</th>
+                <th>Quantité</th>
+                <th>Sous-total unitaire</th>
+                <th>Sous-total</th>
+            </tr>
+            <tr>
+                <td>${escapeHtml(selectedRepere)}</td>
+                <td>${quantity}</td>
+                <td class="price-cell">${formatNumber(totalAmount)} €</td>
+                <td class="price-cell" style="background-color: #e6f2ff;">${formatNumber(finalAmount)} €</td>
+            </tr>
+        </table>
+    `;
 
-            // Afficher les résultats après sélection de la quantité
-            resultDiv.innerHTML = resultsHtml;
-            resultDiv.style.display = 'block';
+            // Afficher les résultats temporaires
+            tempResultDiv.innerHTML = tempResultsHtml;
+            tempResultDiv.style.display = 'block';
+
+            // Si c'est la première fois que l'on calcule un résultat final
+            if (!window.cumulativeResults) {
+                window.cumulativeResults = [];
+            }
+
+            // Ajouter ce résultat au tableau cumulé
+            window.cumulativeResults.push({
+                description: selectedRepere,
+                quantity: quantity,
+                unitPrice: totalAmount,
+                totalPrice: finalAmount
+            });
+
+            // Préparer le HTML des résultats cumulés
+            let finalResultsHtml = `
+        <div class="result-title">Récapitulatif total</div>
+        <table class="result-table">
+            <tr>
+                <th>Description</th>
+                <th>Quantité</th>
+                <th>Sous-total</th>
+            </tr>
+    `;
+
+            let grandTotal = 0;
+            // Afficher tous les items du tableau cumulatif
+            for (const result of window.cumulativeResults) {
+                finalResultsHtml += `
+            <tr>
+                <td>${escapeHtml(result.description)}</td>
+                <td>${result.quantity}</td>
+                <td class="price-cell">${formatNumber(result.totalPrice)} €</td>
+            </tr>
+        `;
+                grandTotal += result.totalPrice;
+            }
+
+            finalResultsHtml += `
+            <tr>
+                <td colspan="2" style="text-align: right; font-weight: bold;">Total global</td>
+                <td class="price-cell" style="background-color: #e6f2ff;">${formatNumber(grandTotal)} €</td>
+            </tr>
+        </table>
+        <button id="reset-results" class="search-button" style="margin-top: 15px; background-color: #f44336;">Réinitialiser</button>
+    `;
+
+            // Afficher les résultats finaux
+            finalResultDiv.innerHTML = finalResultsHtml;
+            finalResultDiv.style.display = 'block';
+
+            // Ajouter un gestionnaire d'événement pour le bouton de réinitialisation
+            document.getElementById('reset-results').addEventListener('click', function() {
+                window.cumulativeResults = [];
+                finalResultDiv.style.display = 'none';
+                tempResultDiv.style.display = 'none';
+            });
         }
 
         // Fonction pour configurer les gestionnaires d'événements
