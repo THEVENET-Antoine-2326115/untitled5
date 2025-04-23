@@ -339,6 +339,30 @@
         <button id="search-site-button" class="search-button">Rechercher</button>
     </div>
 
+    <!-- Formulaire pour les options de transport (initialement masqué) -->
+    <div id="transport-filter" class="search-form" style="display: none;">
+        <div style="display: flex; flex-direction: column; gap: 10px; width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; background-color: #f9f9f9;">
+            <div style="font-weight: bold; margin-bottom: 5px;">Options de transport:</div>
+            <div style="display: flex; align-items: center; gap: 20px;">
+                <div>
+                    <label>Faut-il un transport barreaux ?</label>
+                    <div style="margin-top: 5px;">
+                        <label style="margin-right: 15px;"><input type="radio" name="transport-barreaux" value="Oui"> Oui</label>
+                        <label><input type="radio" name="transport-barreaux" value="Non" checked> Non</label>
+                    </div>
+                </div>
+                <div>
+                    <label>Faut-il un transport panneaux ?</label>
+                    <div style="margin-top: 5px;">
+                        <label style="margin-right: 15px;"><input type="radio" name="transport-panneaux" value="Oui"> Oui</label>
+                        <label><input type="radio" name="transport-panneaux" value="Non" checked> Non</label>
+                    </div>
+                </div>
+            </div>
+            <button id="transport-submit-button" class="search-button" style="align-self: flex-end;">Valider</button>
+        </div>
+    </div>
+
     <!-- Filtre de repère (initialement masqué) -->
     <div id="repere-filter" class="search-form" style="display: none;">
         <select id="repere-select" class="search-select">
@@ -354,7 +378,7 @@
             <label for="quantity-input">Quantité:</label>
             <input type="number" id="quantity-input" class="search-input" min="1" value="1">
         </div>
-        <button id="calculate-button" class="search-button">Calculer</button>
+        <button id="calculate-button" class="search-button">Valider</button>
     </div>
     <div id="site-result" style="display: none;"></div>
 </div>
@@ -373,6 +397,9 @@
         let allSites = [];
         let filesDataGlobal = {};
         let allTablesVisible = false;
+        // Variables globales pour stocker les options de transport
+        let transportBarreauxValue = "Non"; // Valeur par défaut
+        let transportPanneauxValue = "Non"; // Valeur par défaut
 
         // Configuration de l'authentification
         const authModal = document.getElementById('authModal');
@@ -746,69 +773,34 @@
         // Fonction de recherche par site
         function searchBySite() {
             const resultDiv = document.getElementById('site-result');
-            // Ne pas afficher le div de résultat
-            resultDiv.style.display = 'none';
-
             const selectedSite = document.getElementById('site-select').value;
+            const transportFilterDiv = document.getElementById('transport-filter');
 
-            // Vérifier qu'un site est sélectionné
-            if (!selectedSite) {
-                resultDiv.innerHTML = `<div class="no-result">Veuillez sélectionner un site</div>`;
-                // Masquer le filtre de repère
-                document.getElementById('repere-filter').style.display = 'none';
-                return;
-            }
+            // Masquer le filtre de repère
+            document.getElementById('repere-filter').style.display = 'none';
 
             // Récupérer les items pour le site sélectionné
             const items = allItemsBySite[selectedSite] || [];
 
             if (items.length === 0) {
-                resultDiv.innerHTML = `<div class="no-result">Aucun item trouvé pour le site "${escapeHtml(selectedSite)}"</div>`;
-                // Masquer le filtre de repère
-                document.getElementById('repere-filter').style.display = 'none';
+                transportFilterDiv.style.display = 'none';
                 return;
             }
 
-            // Remplir le sélecteur de repères
+            // Préparer les données pour le filtre de repère (mais ne pas l'afficher encore)
             populateRepereSelect(selectedSite);
 
-            // Calcul et préparation des résultats se font toujours,
-            // mais sans afficher le tableau de résultats
-            let totalAmount = 0;
-            items.forEach(item => {
-                totalAmount += parseFloat(item.sousTotal) || 0;
-            });
+            // Afficher le formulaire de transport
+            transportFilterDiv.style.display = 'flex';
 
-            // Préparer le HTML des résultats
-            let resultsHtml = `
-                <div class="result-title">Items pour le site: ${escapeHtml(selectedSite)} (${items.length} items)</div>
-                <table class="result-table">
-                    <tr>
-                        <th>Description</th>
-                        <th>Sous-total</th>
-                    </tr>
-            `;
+            // Réinitialiser les options de transport
+            document.querySelector('input[name="transport-barreaux"][value="non"]').checked = true;
+            document.querySelector('input[name="transport-panneaux"][value="non"]').checked = true;
 
-            // Afficher tous les items (y compris les doublons qui peuvent être des occurrences différentes)
-            for (const item of items) {
-                resultsHtml += `
-                    <tr>
-                        <td>${escapeHtml(item.description)}</td>
-                        <td class="price-cell">${formatNumber(item.sousTotal)} €</td>
-                    </tr>
-                `;
+            // Si le tableau récapitulatif contient des données, on le maintient visible
+            if (window.cumulativeResults && window.cumulativeResults.length > 0) {
+                updateResultsTable();
             }
-
-            resultsHtml += `
-                    <tr>
-                        <td style="text-align: right; font-weight: bold;">Total</td>
-                        <td class="price-cell" style="background-color: #e6f2ff;">${formatNumber(totalAmount)} €</td>
-                    </tr>
-                </table>
-            `;
-
-            // Stocker les résultats dans le div mais sans l'afficher
-            resultDiv.innerHTML = resultsHtml;
         }
 
         // Fonction de filtrage par repère
@@ -818,8 +810,10 @@
             const selectedRepere = document.getElementById('repere-select').value;
             const quantityFilterDiv = document.getElementById('quantity-filter');
 
-            // Masquer le div de résultat
-            resultDiv.style.display = 'none';
+            // Ne pas masquer le div de résultat si le tableau récapitulatif contient des éléments
+            if (!window.cumulativeResults || window.cumulativeResults.length === 0) {
+                resultDiv.style.display = 'none';
+            }
 
             // Vérifier qu'un site et un repère sont sélectionnés
             if (!selectedSite || !selectedRepere) {
@@ -885,13 +879,15 @@
             // Générer un ID unique pour cette entrée
             const entryId = 'result-' + Date.now();
 
-            // Ajouter ce résultat au tableau cumulé
+            // Ajouter ce résultat au tableau cumulé avec les valeurs des variables globales
             window.cumulativeResults.push({
                 id: entryId,
                 site: selectedSite,
                 description: selectedRepere,
                 quantity: quantity,
-                totalPrice: finalAmount
+                totalPrice: finalAmount,
+                transportBarreaux: transportBarreauxValue,  // Utiliser la variable globale
+                transportPanneaux: transportPanneauxValue   // Utiliser la variable globale
             });
 
             // Mettre à jour l'affichage du tableau
@@ -908,14 +904,22 @@
                 return;
             }
 
+            // Calculer la somme des quantités
+            let totalQuantity = 0;
+            window.cumulativeResults.forEach(result => {
+                totalQuantity += result.quantity;
+            });
+
             // Préparer le HTML des résultats cumulés
             let finalResultsHtml = `
         <div class="result-title">Récapitulatif total</div>
         <table class="result-table">
             <tr>
                 <th>Site</th>
-                <th>Description</th>
+                <th>Repère</th>
                 <th>Quantité</th>
+                <th>Transport Barreaux</th>
+                <th>Transport Panneaux</th>
                 <th>Action</th>
             </tr>
     `;
@@ -923,22 +927,30 @@
             // Afficher tous les items du tableau cumulatif
             for (const result of window.cumulativeResults) {
                 finalResultsHtml += `
-            <tr id="row-${result.id}">
-                <td>${escapeHtml(result.site)}</td>
-                <td>${escapeHtml(result.description)}</td>
-                <td>${result.quantity}</td>
-                <td>
-                    <button class="delete-row-btn" data-id="${result.id}"
-                            style="background-color: #f44336; color: white; border: none;
-                                   padding: 5px 10px; border-radius: 3px; cursor: pointer;">
-                        Supprimer
-                    </button>
-                </td>
-            </tr>
-        `;
+        <tr id="row-${result.id}">
+            <td>${escapeHtml(result.site)}</td>
+            <td>${escapeHtml(result.description)}</td>
+            <td>${result.quantity}</td>
+            <td>${result.transportBarreaux}</td>
+            <td>${result.transportPanneaux}</td>
+            <td>
+                <button class="delete-row-btn" data-id="${result.id}"
+                        style="background-color: #f44336; color: white; border: none;
+                               padding: 5px 10px; border-radius: 3px; cursor: pointer;">
+                    Supprimer
+                </button>
+            </td>
+        </tr>
+    `;
             }
 
+            // Ajouter une ligne récapitulative pour la quantité totale
             finalResultsHtml += `
+            <tr style="background-color: #e6f2ff; font-weight: bold;">
+                <td colspan="2" style="text-align: right;">Quantité totale:</td>
+                <td style="text-align: left;">${totalQuantity}</td>
+                <td colspan="3"></td>
+            </tr>
         </table>
         <button id="reset-results" class="search-button" style="margin-top: 15px; background-color: #f44336;">Tout réinitialiser</button>
     `;
@@ -969,22 +981,50 @@
         function setupEventHandlers() {
             // Gestionnaire pour le bouton de recherche par site
             document.getElementById('search-site-button').addEventListener('click', function() {
-                searchBySite();
-                // Masquer également le div de résultat lors d'une nouvelle recherche par site
-                document.getElementById('site-result').style.display = 'none';
                 // Masquer le formulaire de quantité
                 document.getElementById('quantity-filter').style.display = 'none';
+
+                // Appeler searchBySite pour préparer les données sans afficher le tableau d'items
+                searchBySite();
+
+                // Si le tableau récapitulatif existe, le maintenir visible
+                if (window.cumulativeResults && window.cumulativeResults.length > 0) {
+                    updateResultsTable();
+                }
             });
 
-            // Gestionnaire pour la touche Entrée dans le sélecteur de site
+// Gestionnaire pour le bouton de validation du transport
+            document.getElementById('transport-submit-button').addEventListener('click', function() {
+                // Récupérer directement les éléments radio sélectionnés
+                const barreauxRadio = document.querySelector('input[name="transport-barreaux"]:checked');
+                const panneauxRadio = document.querySelector('input[name="transport-panneaux"]:checked');
+
+                // Stocker les valeurs dans nos variables globales
+                transportBarreauxValue = barreauxRadio ? barreauxRadio.value : "Non";
+                transportPanneauxValue = panneauxRadio ? panneauxRadio.value : "Non";
+
+                console.log("Transport barreaux: " + transportBarreauxValue);
+                console.log("Transport panneaux: " + transportPanneauxValue);
+
+                // Afficher le filtre de repère
+                document.getElementById('repere-filter').style.display = 'flex';
+            });
+
+            // Gestionnaire pour le changement dans le sélecteur de site
             document.getElementById('site-select').addEventListener('change', function() {
-                searchBySite();
                 // Réinitialiser le sélecteur de repère
                 document.getElementById('repere-select').value = '';
-                // Masquer le div de résultat
-                document.getElementById('site-result').style.display = 'none';
+
                 // Masquer le formulaire de quantité
                 document.getElementById('quantity-filter').style.display = 'none';
+
+                // Appeler searchBySite pour préparer les données sans afficher le tableau d'items
+                searchBySite();
+
+                // Si le tableau récapitulatif existe, le maintenir visible
+                if (window.cumulativeResults && window.cumulativeResults.length > 0) {
+                    updateResultsTable();
+                }
             });
 
             // Gestionnaire pour le bouton de filtrage par repère
@@ -995,8 +1035,10 @@
             // Gestionnaire pour le changement de sélection de repère
             document.getElementById('repere-select').addEventListener('change', function() {
                 filterByRepere();
-                // Masquer le div de résultat quand on change de repère
-                document.getElementById('site-result').style.display = 'none';
+                // Ne plus masquer le div de résultat si le tableau récapitulatif contient des éléments
+                if (!window.cumulativeResults || window.cumulativeResults.length === 0) {
+                    document.getElementById('site-result').style.display = 'none';
+                }
             });
 
             // Gestionnaire pour le bouton de calcul
@@ -1013,8 +1055,10 @@
 
             // Gestionnaire pour le changement de valeur dans le champ de quantité
             document.getElementById('quantity-input').addEventListener('input', function() {
-                // Masquer le div de résultat quand on change la quantité
-                document.getElementById('site-result').style.display = 'none';
+                // Ne plus masquer le div de résultat si le tableau récapitulatif contient des éléments
+                if (!window.cumulativeResults || window.cumulativeResults.length === 0) {
+                    document.getElementById('site-result').style.display = 'none';
+                }
             });
 
             // Gestionnaire pour les titres de fichiers
