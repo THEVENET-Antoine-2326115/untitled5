@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Affichage des fichiers Excel</title>
+    <title>Panneaux de grille</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -336,9 +336,59 @@
             font-size: 18px;
         }
 
+        .site-header {
+            width: 100%;
+            background-color: white;
+            padding: 10px 0;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+            text-align: center;
+        }
+
+        .site-header img {
+            max-width: 100%;
+            height: auto;
+            max-height: 80px;
+        }
+
+        /* Styles pour le header avec les deux logos */
+        .site-header {
+            width: 100%;
+            background-color: white;
+            padding: 10px 0;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #ddd;
+            text-align: center;
+        }
+
+        .logos-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 50px; /* Espace entre les deux logos */
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .logo-moscatelli {
+            max-height: 80px;
+            width: auto;
+        }
+
+        .logo-cnr {
+            max-height: 60px; /* Légèrement plus petit si nécessaire */
+            width: auto;
+        }
     </style>
 </head>
 <body>
+<!-- Ajoutez ce bloc header avant la popup d'authentification -->
+<header class="site-header">
+    <div class="logos-container">
+        <img src="entreprises_moscatelli_cover.jpg" alt="Moscatelli - Chaudronnerie Tuyauterie Mécanique Maintenance Ventilation" class="logo-moscatelli">
+        <img src="cnr_logo_encapsule-_q.png" alt="CNR" class="logo-cnr">
+    </div>
+</header>
 <!-- Popup d'authentification -->
 <div id="authModal" class="auth-modal">
     <div class="auth-container">
@@ -358,7 +408,7 @@
     </div>
 </div>
 
-<h1>Affichage des fichiers Excel</h1>
+<h1>Formulaire de sélection</h1>
 
 <!-- Conteneur pour la recherche par site -->
 <div class="search-container">
@@ -402,6 +452,8 @@
                 <label for="dechargement-non">Non</label>
             </div>
         </div>
+
+        <button id="validate-transport-button" class="search-button">Valider les options</button>
     </div>
 
     <!-- Filtre de repère (initialement masqué) -->
@@ -451,7 +503,7 @@
         // Stocker les identifiants valides
         const validCredentials = [
             { username: "admin", password: "admin123" },
-            { username: "user", password: "user123" }
+            { username: "cnrtemp", password: "mdpTemp25" }
         ];
 
         // Empêcher le défilement du contenu lorsque la popup est active
@@ -914,6 +966,49 @@
             document.getElementById('quantity-input').value = 1;
         }
 
+        // Fonction pour valider les options de transport pour un site
+        function validateTransportOptions() {
+            const selectedSite = document.getElementById('site-select').value;
+
+            // Vérifier qu'un site est sélectionné
+            if (!selectedSite) {
+                alert("Veuillez sélectionner un site.");
+                return;
+            }
+
+            // Si c'est la première fois que l'on ajoute un résultat
+            if (!window.cumulativeResults) {
+                window.cumulativeResults = [];
+            }
+
+            // Vérifier si une ligne d'options de transport existe déjà pour ce site
+            const existingTransportIndex = window.cumulativeResults.findIndex(
+                result => result.isTransportOnly && result.site === selectedSite
+            );
+
+            if (existingTransportIndex !== -1) {
+                // Une entrée existe déjà, mettre à jour plutôt qu'ajouter
+                window.cumulativeResults[existingTransportIndex].transportPanneaux = transportPanneaux;
+                window.cumulativeResults[existingTransportIndex].transportBarreaux = transportBarreaux;
+                window.cumulativeResults[existingTransportIndex].dechargement = dechargement;
+            } else {
+                // Aucune entrée existante, ajouter une nouvelle
+                const entryId = 'transport-' + Date.now();
+
+                window.cumulativeResults.push({
+                    id: entryId,
+                    site: selectedSite,
+                    isTransportOnly: true,
+                    transportPanneaux: transportPanneaux,
+                    transportBarreaux: transportBarreaux,
+                    dechargement: dechargement
+                });
+            }
+
+            // Mettre à jour l'affichage du tableau
+            updateResultsTable();
+        }
+
 // Fonction pour valider les options de transport pour un site
         function validateTransportForSite() {
             const selectedSite = document.getElementById('site-select').value;
@@ -1012,30 +1107,7 @@
                 window.cumulativeResults = [];
             }
 
-            // Vérifier si une ligne d'options de transport existe déjà pour ce site
-            // Utilisons simplement l'égalité avec le nom du site pour être sûr
-            const existingTransportIndex = window.cumulativeResults.findIndex(
-                result => result.isTransportOnly && result.site === selectedSite
-            );
-
-            // Si aucune ligne d'options de transport n'existe pour ce site, en ajouter une
-            if (existingTransportIndex === -1) {
-                const transportEntryId = 'transport-' + Date.now();
-
-                window.cumulativeResults.push({
-                    id: transportEntryId,
-                    site: selectedSite,
-                    isTransportOnly: true,
-                    transportPanneaux: transportPanneaux,
-                    transportBarreaux: transportBarreaux,
-                    dechargement: dechargement
-                });
-            } else {
-                // Si une ligne existe déjà, mettons à jour ses valeurs pour être sûr
-                window.cumulativeResults[existingTransportIndex].transportPanneaux = transportPanneaux;
-                window.cumulativeResults[existingTransportIndex].transportBarreaux = transportBarreaux;
-                window.cumulativeResults[existingTransportIndex].dechargement = dechargement;
-            }
+            // Supprimer le code qui ajoutait automatiquement la ligne d'options de transport
 
             // Calculer le total pour les items filtrés avec la quantité
             let totalAmount = 0;
@@ -1091,7 +1163,7 @@
     <table class="result-table">
         <tr>
             <th>Site</th>
-            <th>Description</th>
+            <th>Repère</th>
             <th>Quantité</th>
             <th>Transport Panneaux</th>
             <th>Transport Barreaux</th>
@@ -1212,6 +1284,11 @@
                     dechargement = this.value;
                     console.log("Déchargement:", dechargement);
                 });
+            });
+
+            // Dans setupEventHandlers()
+            document.getElementById('validate-transport-button').addEventListener('click', function() {
+                validateTransportOptions();
             });
 
 
