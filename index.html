@@ -304,6 +304,38 @@
             background-color: #d32f2f;
         }
 
+        .transport-option {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-right: 20px;
+        }
+
+        .radio-group {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .radio-group input[type="radio"] {
+            margin-left: 10px;
+        }
+
+        .total-quantity-display {
+            background-color: #e6f2ff;
+            padding: 10px 15px;
+            margin-bottom: 15px;
+            border-radius: 5px;
+            border-left: 4px solid #4CAF50;
+            font-size: 16px;
+        }
+
+        #total-quantity-value {
+            font-weight: bold;
+            color: #2c7fb8;
+            font-size: 18px;
+        }
+
     </style>
 </head>
 <body>
@@ -339,27 +371,36 @@
         <button id="search-site-button" class="search-button">Rechercher</button>
     </div>
 
-    <!-- Formulaire pour les options de transport (initialement masqué) -->
-    <div id="transport-filter" class="search-form" style="display: none;">
-        <div style="display: flex; flex-direction: column; gap: 10px; width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; background-color: #f9f9f9;">
-            <div style="font-weight: bold; margin-bottom: 5px;">Options de transport:</div>
-            <div style="display: flex; align-items: center; gap: 20px;">
-                <div>
-                    <label>Faut-il un transport barreaux ?</label>
-                    <div style="margin-top: 5px;">
-                        <label style="margin-right: 15px;"><input type="radio" name="transport-barreaux" value="Oui"> Oui</label>
-                        <label><input type="radio" name="transport-barreaux" value="Non" checked> Non</label>
-                    </div>
-                </div>
-                <div>
-                    <label>Faut-il un transport panneaux ?</label>
-                    <div style="margin-top: 5px;">
-                        <label style="margin-right: 15px;"><input type="radio" name="transport-panneaux" value="Oui"> Oui</label>
-                        <label><input type="radio" name="transport-panneaux" value="Non" checked> Non</label>
-                    </div>
-                </div>
+    <!-- Options de transport (initialement masquées) -->
+    <div id="transport-options" class="search-form" style="display: none;">
+        <div class="transport-option">
+            <label>Transport panneaux:</label>
+            <div class="radio-group">
+                <input type="radio" id="transport-panneaux-oui" name="transport-panneaux" value="oui">
+                <label for="transport-panneaux-oui">Oui</label>
+                <input type="radio" id="transport-panneaux-non" name="transport-panneaux" value="non" checked>
+                <label for="transport-panneaux-non">Non</label>
             </div>
-            <button id="transport-submit-button" class="search-button" style="align-self: flex-end;">Valider</button>
+        </div>
+
+        <div class="transport-option">
+            <label>Transport barreaux:</label>
+            <div class="radio-group">
+                <input type="radio" id="transport-barreaux-oui" name="transport-barreaux" value="oui">
+                <label for="transport-barreaux-oui">Oui</label>
+                <input type="radio" id="transport-barreaux-non" name="transport-barreaux" value="non" checked>
+                <label for="transport-barreaux-non">Non</label>
+            </div>
+        </div>
+
+        <div class="transport-option">
+            <label>Grue à prévoir sur le site ?</label>
+            <div class="radio-group">
+                <input type="radio" id="dechargement-oui" name="dechargement" value="oui">
+                <label for="dechargement-oui">Oui</label>
+                <input type="radio" id="dechargement-non" name="dechargement" value="non" checked>
+                <label for="dechargement-non">Non</label>
+            </div>
         </div>
     </div>
 
@@ -397,9 +438,10 @@
         let allSites = [];
         let filesDataGlobal = {};
         let allTablesVisible = false;
-        // Variables globales pour stocker les options de transport
-        let transportBarreauxValue = "Non"; // Valeur par défaut
-        let transportPanneauxValue = "Non"; // Valeur par défaut
+        // Variables pour le transport (ajoutez ces lignes)
+        let transportPanneaux = "non";
+        let transportBarreaux = "non";
+        let dechargement = "non";
 
         // Configuration de l'authentification
         const authModal = document.getElementById('authModal');
@@ -704,7 +746,7 @@
             });
         }
 
-        // Fonction pour remplir le sélecteur de repères pour un site donné
+// Fonction pour remplir le sélecteur de repères pour un site donné
         function populateRepereSelect(site) {
             const selectElement = document.getElementById('repere-select');
             const repereFilterDiv = document.getElementById('repere-filter');
@@ -715,7 +757,20 @@
             }
 
             // Récupérer les items pour le site sélectionné
-            const items = allItemsBySite[site] || [];
+            let items = [];
+
+            // Cas spécial pour "BEAUCHASTEL / LOGIS - NEUF" (combiner les deux sites)
+            if (site === "BEAUCHASTEL / LOGIS - NEUF") {
+                // Récupérer les items de Beauchastel
+                const itemsBeauchastel = allItemsBySite["BEAUCHASTEL"] || [];
+                // Récupérer les items de Logis-Neuf
+                const itemsLogisNeuf = allItemsBySite["LOGIS-NEUF"] || [];
+                // Combiner les deux ensembles d'items
+                items = [...itemsBeauchastel, ...itemsLogisNeuf];
+            } else {
+                // Comportement standard pour les autres sites
+                items = allItemsBySite[site] || [];
+            }
 
             if (items.length === 0) {
                 repereFilterDiv.style.display = 'none';
@@ -773,47 +828,51 @@
         // Fonction de recherche par site
         function searchBySite() {
             const resultDiv = document.getElementById('site-result');
-            const selectedSite = document.getElementById('site-select').value;
-            const transportFilterDiv = document.getElementById('transport-filter');
+            const transportOptionsDiv = document.getElementById('transport-options');
 
-            // Masquer le filtre de repère
-            document.getElementById('repere-filter').style.display = 'none';
+            // Retirons cette ligne qui masque le tableau résultat
+            // resultDiv.style.display = 'none';
+
+            const selectedSite = document.getElementById('site-select').value;
+
+            // Vérifier qu'un site est sélectionné
+            if (!selectedSite) {
+                // resultDiv.innerHTML = `<div class="no-result">Veuillez sélectionner un site</div>`;
+                // Éviter de modifier le contenu du tableau résultat si déjà présent
+                // Masquer le filtre de repère et les options de transport
+                document.getElementById('repere-filter').style.display = 'none';
+                transportOptionsDiv.style.display = 'none';
+                return;
+            }
 
             // Récupérer les items pour le site sélectionné
             const items = allItemsBySite[selectedSite] || [];
 
             if (items.length === 0) {
-                transportFilterDiv.style.display = 'none';
+                // resultDiv.innerHTML = `<div class="no-result">Aucun item trouvé pour le site "${escapeHtml(selectedSite)}"</div>`;
+                // Éviter de modifier le contenu du tableau résultat si déjà présent
+                // Masquer le filtre de repère et les options de transport
+                document.getElementById('repere-filter').style.display = 'none';
+                transportOptionsDiv.style.display = 'none';
                 return;
             }
 
-            // Préparer les données pour le filtre de repère (mais ne pas l'afficher encore)
+            // Remplir le sélecteur de repères
             populateRepereSelect(selectedSite);
 
-            // Afficher le formulaire de transport
-            transportFilterDiv.style.display = 'flex';
-
-            // Réinitialiser les options de transport
-            document.querySelector('input[name="transport-barreaux"][value="non"]').checked = true;
-            document.querySelector('input[name="transport-panneaux"][value="non"]').checked = true;
-
-            // Si le tableau récapitulatif contient des données, on le maintient visible
-            if (window.cumulativeResults && window.cumulativeResults.length > 0) {
-                updateResultsTable();
-            }
+            // Afficher les options de transport
+            transportOptionsDiv.style.display = 'flex';
         }
 
-        // Fonction de filtrage par repère
+// Fonction de filtrage par repère
         function filterByRepere() {
             const resultDiv = document.getElementById('site-result');
             const selectedSite = document.getElementById('site-select').value;
             const selectedRepere = document.getElementById('repere-select').value;
             const quantityFilterDiv = document.getElementById('quantity-filter');
 
-            // Ne pas masquer le div de résultat si le tableau récapitulatif contient des éléments
-            if (!window.cumulativeResults || window.cumulativeResults.length === 0) {
-                resultDiv.style.display = 'none';
-            }
+            // Supprimons cette ligne qui masque le div de résultat
+            // resultDiv.style.display = 'none';
 
             // Vérifier qu'un site et un repère sont sélectionnés
             if (!selectedSite || !selectedRepere) {
@@ -822,13 +881,25 @@
             }
 
             // Récupérer les items pour le site sélectionné
-            const allItems = allItemsBySite[selectedSite] || [];
+            let allItems = [];
+
+            // Cas spécial pour "BEAUCHASTEL / LOGIS - NEUF"
+            if (selectedSite === "BEAUCHASTEL / LOGIS - NEUF") {
+                const itemsBeauchastel = allItemsBySite["BEAUCHASTEL"] || [];
+                const itemsLogisNeuf = allItemsBySite["LOGIS-NEUF"] || [];
+                allItems = [...itemsBeauchastel, ...itemsLogisNeuf];
+            } else {
+                allItems = allItemsBySite[selectedSite] || [];
+            }
 
             // Filtrer les items par repère
             const filteredItems = allItems.filter(item => item.description === selectedRepere);
 
             if (filteredItems.length === 0) {
-                resultDiv.innerHTML = `<div class="no-result">Aucun item trouvé pour le repère "${escapeHtml(selectedRepere)}"</div>`;
+                // Supprimons/modifions cette partie qui remplace le contenu du résultat
+                // resultDiv.innerHTML = `<div class="no-result">Aucun item trouvé pour le repère "${escapeHtml(selectedRepere)}"</div>`;
+                // Au lieu de cela, affichons une alerte non bloquante
+                alert(`Aucun item trouvé pour le repère "${selectedRepere}"`);
                 quantityFilterDiv.style.display = 'none';
                 return;
             }
@@ -843,7 +914,81 @@
             document.getElementById('quantity-input').value = 1;
         }
 
-        // Fonction de calcul avec quantité
+// Fonction pour valider les options de transport pour un site
+        function validateTransportForSite() {
+            const selectedSite = document.getElementById('site-select').value;
+
+            // Vérifier qu'un site est sélectionné
+            if (!selectedSite) {
+                return;
+            }
+
+            // Si c'est la première fois que l'on ajoute un résultat
+            if (!window.cumulativeResults) {
+                window.cumulativeResults = [];
+            }
+
+            // Vérifier si une entrée de transport existe déjà pour ce site
+            const existingTransportIndex = window.cumulativeResults.findIndex(
+                result => result.isTransportOnly && result.site === selectedSite
+            );
+
+            if (existingTransportIndex !== -1) {
+                // Une entrée existe déjà, mettre à jour plutôt qu'ajouter
+                window.cumulativeResults[existingTransportIndex].transportPanneaux = transportPanneaux;
+                window.cumulativeResults[existingTransportIndex].transportBarreaux = transportBarreaux;
+
+                // Afficher un message pour informer l'utilisateur
+                alert("Les options de transport pour ce site ont été mises à jour.");
+            } else {
+                // Aucune entrée existante, ajouter une nouvelle
+                const entryId = 'transport-' + Date.now();
+
+                window.cumulativeResults.push({
+                    id: entryId,
+                    site: selectedSite,
+                    isTransportOnly: true,
+                    transportPanneaux: transportPanneaux,
+                    transportBarreaux: transportBarreaux
+                });
+            }
+
+            // Mettre à jour l'affichage du tableau
+            updateResultsTable();
+
+            // Afficher le résultat
+            document.getElementById('site-result').style.display = 'block';
+        }
+
+        // Fonction pour masquer les fichiers Excel
+        function hideExcelData() {
+            const excelDataContainer = document.getElementById('excel-data');
+            if (excelDataContainer) {
+                excelDataContainer.style.display = 'none';
+            }
+
+            // Masquer également le bouton de toggle qui contrôle l'affichage des tableaux
+            const toggleButton = document.getElementById('toggle-all-btn');
+            if (toggleButton) {
+                toggleButton.style.display = 'none';
+            }
+
+            // Masquer le titre "Affichage des fichiers Excel"
+            const titleElements = document.getElementsByTagName('h1');
+            for (let i = 0; i < titleElements.length; i++) {
+                if (titleElements[i].innerText === 'Affichage des fichiers Excel') {
+                    titleElements[i].style.display = 'none';
+                }
+            }
+
+            // Masquer le div de contrôle des tableaux
+            const toggleControls = document.querySelector('.toggle-controls');
+            if (toggleControls) {
+                toggleControls.style.display = 'none';
+            }
+        }
+
+// Fonction de calcul avec quantité
         function calculateWithQuantity() {
             const resultDiv = document.getElementById('site-result');
             const quantityInput = document.getElementById('quantity-input');
@@ -862,6 +1007,36 @@
                 return;
             }
 
+            // Initialiser le tableau de résultats si nécessaire
+            if (!window.cumulativeResults) {
+                window.cumulativeResults = [];
+            }
+
+            // Vérifier si une ligne d'options de transport existe déjà pour ce site
+            // Utilisons simplement l'égalité avec le nom du site pour être sûr
+            const existingTransportIndex = window.cumulativeResults.findIndex(
+                result => result.isTransportOnly && result.site === selectedSite
+            );
+
+            // Si aucune ligne d'options de transport n'existe pour ce site, en ajouter une
+            if (existingTransportIndex === -1) {
+                const transportEntryId = 'transport-' + Date.now();
+
+                window.cumulativeResults.push({
+                    id: transportEntryId,
+                    site: selectedSite,
+                    isTransportOnly: true,
+                    transportPanneaux: transportPanneaux,
+                    transportBarreaux: transportBarreaux,
+                    dechargement: dechargement
+                });
+            } else {
+                // Si une ligne existe déjà, mettons à jour ses valeurs pour être sûr
+                window.cumulativeResults[existingTransportIndex].transportPanneaux = transportPanneaux;
+                window.cumulativeResults[existingTransportIndex].transportBarreaux = transportBarreaux;
+                window.cumulativeResults[existingTransportIndex].dechargement = dechargement;
+            }
+
             // Calculer le total pour les items filtrés avec la quantité
             let totalAmount = 0;
             window.currentFilteredItems.forEach(item => {
@@ -871,23 +1046,16 @@
             // Multiplier par la quantité
             const finalAmount = totalAmount * quantity;
 
-            // Si c'est la première fois que l'on calcule un résultat final
-            if (!window.cumulativeResults) {
-                window.cumulativeResults = [];
-            }
+            // Générer un ID unique pour l'entrée de produit
+            const productEntryId = 'product-' + Date.now();
 
-            // Générer un ID unique pour cette entrée
-            const entryId = 'result-' + Date.now();
-
-            // Ajouter ce résultat au tableau cumulé avec les valeurs des variables globales
+            // Ajouter le produit au tableau cumulé
             window.cumulativeResults.push({
-                id: entryId,
+                id: productEntryId,
                 site: selectedSite,
                 description: selectedRepere,
                 quantity: quantity,
-                totalPrice: finalAmount,
-                transportBarreaux: transportBarreauxValue,  // Utiliser la variable globale
-                transportPanneaux: transportPanneauxValue   // Utiliser la variable globale
+                totalPrice: finalAmount
             });
 
             // Mettre à jour l'affichage du tableau
@@ -904,74 +1072,102 @@
                 return;
             }
 
-            // Calculer la somme des quantités
+            // Calculer la quantité totale de panneaux
             let totalQuantity = 0;
-            window.cumulativeResults.forEach(result => {
-                totalQuantity += result.quantity;
-            });
+            for (const result of window.cumulativeResults) {
+                // Ne compter que les lignes qui ne sont pas des transports et qui ont une quantité
+                if (!result.isTransportOnly && result.quantity) {
+                    totalQuantity += parseInt(result.quantity, 10);
+                }
+            }
 
             // Préparer le HTML des résultats cumulés
             let finalResultsHtml = `
-        <div class="result-title">Récapitulatif total</div>
-        <table class="result-table">
-            <tr>
-                <th>Site</th>
-                <th>Repère</th>
-                <th>Quantité</th>
-                <th>Transport Barreaux</th>
-                <th>Transport Panneaux</th>
-                <th>Action</th>
-            </tr>
-    `;
-
-            // Afficher tous les items du tableau cumulatif
-            for (const result of window.cumulativeResults) {
-                finalResultsHtml += `
-        <tr id="row-${result.id}">
-            <td>${escapeHtml(result.site)}</td>
-            <td>${escapeHtml(result.description)}</td>
-            <td>${result.quantity}</td>
-            <td>${result.transportBarreaux}</td>
-            <td>${result.transportPanneaux}</td>
-            <td>
-                <button class="delete-row-btn" data-id="${result.id}"
-                        style="background-color: #f44336; color: white; border: none;
-                               padding: 5px 10px; border-radius: 3px; cursor: pointer;">
-                    Supprimer
-                </button>
-            </td>
+    <div class="result-title">Récapitulatif total</div>
+    <div class="total-quantity-display">
+        <strong>Quantité totale de panneaux:</strong>
+        <span id="total-quantity-value">${totalQuantity}</span>
+    </div>
+    <table class="result-table">
+        <tr>
+            <th>Site</th>
+            <th>Description</th>
+            <th>Quantité</th>
+            <th>Transport Panneaux</th>
+            <th>Transport Barreaux</th>
+            <th>Déchargement</th>
+            <th>Action</th>
         </tr>
-    `;
+`;
+
+// Afficher tous les items du tableau cumulatif
+            for (const result of window.cumulativeResults) {
+                // Pour les entrées qui sont uniquement de transport
+                if (result.isTransportOnly) {
+                    finalResultsHtml += `
+            <tr id="row-${result.id}" style="background-color: #f0f8ff;">
+                <td>${escapeHtml(result.site)}</td>
+                <td colspan="2" style="text-align: center; font-style: italic;">Options</td>
+                <td>${result.transportPanneaux}</td>
+                <td>${result.transportBarreaux}</td>
+                <td>${result.dechargement || 'non'}</td>
+                <td>
+                    <button class="delete-row-btn" data-id="${result.id}"
+                            style="background-color: #f44336; color: white; border: none;
+                                   padding: 5px 10px; border-radius: 3px; cursor: pointer;">
+                        Supprimer
+                    </button>
+                </td>
+            </tr>
+        `;
+                } else {
+                    // Pour les entrées normales (produits)
+                    finalResultsHtml += `
+            <tr id="row-${result.id}">
+                <td>${escapeHtml(result.site)}</td>
+                <td>${escapeHtml(result.description || '')}</td>
+                <td>${result.quantity || ''}</td>
+                <td>${result.transportPanneaux || ''}</td>
+                <td>${result.transportBarreaux || ''}</td>
+                <td>${result.dechargement || ''}</td>
+                <td>
+                    <button class="delete-row-btn" data-id="${result.id}"
+                            style="background-color: #f44336; color: white; border: none;
+                                   padding: 5px 10px; border-radius: 3px; cursor: pointer;">
+                        Supprimer
+                    </button>
+                </td>
+            </tr>
+        `;
+                }
             }
 
-            // Ajouter une ligne récapitulative pour la quantité totale
             finalResultsHtml += `
-            <tr style="background-color: #e6f2ff; font-weight: bold;">
-                <td colspan="2" style="text-align: right;">Quantité totale:</td>
-                <td style="text-align: left;">${totalQuantity}</td>
-                <td colspan="3"></td>
-            </tr>
         </table>
-        <button id="reset-results" class="search-button" style="margin-top: 15px; background-color: #f44336;">Tout réinitialiser</button>
+        <button id="reset-results" class="reset-button">Tout réinitialiser</button>
     `;
 
             // Afficher les résultats finaux
             resultDiv.innerHTML = finalResultsHtml;
             resultDiv.style.display = 'block';
 
-            // Ajouter un gestionnaire d'événement pour le bouton de réinitialisation complète
+            // Ajouter événements pour les boutons
+            setupResultButtonEvents();
+        }
+
+// Fonction pour configurer les événements des boutons de résultat
+        function setupResultButtonEvents() {
+            // Réinitialisation
             document.getElementById('reset-results').addEventListener('click', function() {
                 window.cumulativeResults = [];
                 updateResultsTable();
             });
 
-            // Ajouter des gestionnaires d'événement pour chaque bouton de suppression
+            // Boutons de suppression
             document.querySelectorAll('.delete-row-btn').forEach(button => {
                 button.addEventListener('click', function() {
                     const idToRemove = this.getAttribute('data-id');
-                    // Filtrer pour retirer l'élément correspondant à l'ID
                     window.cumulativeResults = window.cumulativeResults.filter(item => item.id !== idToRemove);
-                    // Mettre à jour l'affichage
                     updateResultsTable();
                 });
             });
@@ -981,51 +1177,61 @@
         function setupEventHandlers() {
             // Gestionnaire pour le bouton de recherche par site
             document.getElementById('search-site-button').addEventListener('click', function() {
+                searchBySite();
                 // Masquer le formulaire de quantité
                 document.getElementById('quantity-filter').style.display = 'none';
 
-                // Appeler searchBySite pour préparer les données sans afficher le tableau d'items
-                searchBySite();
-
-                // Si le tableau récapitulatif existe, le maintenir visible
-                if (window.cumulativeResults && window.cumulativeResults.length > 0) {
-                    updateResultsTable();
-                }
+                // Réinitialiser les boutons radio à leur valeur par défaut
+                document.getElementById('transport-panneaux-non').checked = true;
+                document.getElementById('transport-barreaux-non').checked = true;
+                document.getElementById('dechargement-non').checked = true;
+                transportPanneaux = "non";
+                transportBarreaux = "non";
+                dechargement = "non";
             });
 
-// Gestionnaire pour le bouton de validation du transport
-            document.getElementById('transport-submit-button').addEventListener('click', function() {
-                // Récupérer directement les éléments radio sélectionnés
-                const barreauxRadio = document.querySelector('input[name="transport-barreaux"]:checked');
-                const panneauxRadio = document.querySelector('input[name="transport-panneaux"]:checked');
-
-                // Stocker les valeurs dans nos variables globales
-                transportBarreauxValue = barreauxRadio ? barreauxRadio.value : "Non";
-                transportPanneauxValue = panneauxRadio ? panneauxRadio.value : "Non";
-
-                console.log("Transport barreaux: " + transportBarreauxValue);
-                console.log("Transport panneaux: " + transportPanneauxValue);
-
-                // Afficher le filtre de repère
-                document.getElementById('repere-filter').style.display = 'flex';
+// Gestionnaires d'événements pour les boutons radio de transport panneaux
+            document.querySelectorAll('input[name="transport-panneaux"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    transportPanneaux = this.value;
+                    console.log("Transport panneaux:", transportPanneaux);
+                });
             });
 
-            // Gestionnaire pour le changement dans le sélecteur de site
+// Gestionnaires d'événements pour les boutons radio de transport barreaux
+            document.querySelectorAll('input[name="transport-barreaux"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    transportBarreaux = this.value;
+                    console.log("Transport barreaux:", transportBarreaux);
+                });
+            });
+
+            // Gestionnaires d'événements pour les boutons radio de déchargement
+            document.querySelectorAll('input[name="dechargement"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    dechargement = this.value;
+                    console.log("Déchargement:", dechargement);
+                });
+            });
+
+
+// Gestionnaire pour la touche Entrée dans le sélecteur de site
             document.getElementById('site-select').addEventListener('change', function() {
+                searchBySite();
                 // Réinitialiser le sélecteur de repère
                 document.getElementById('repere-select').value = '';
-
                 // Masquer le formulaire de quantité
                 document.getElementById('quantity-filter').style.display = 'none';
 
-                // Appeler searchBySite pour préparer les données sans afficher le tableau d'items
-                searchBySite();
-
-                // Si le tableau récapitulatif existe, le maintenir visible
-                if (window.cumulativeResults && window.cumulativeResults.length > 0) {
-                    updateResultsTable();
-                }
+                // Réinitialiser les boutons radio à leur valeur par défaut
+                document.getElementById('transport-panneaux-non').checked = true;
+                document.getElementById('transport-barreaux-non').checked = true;
+                document.getElementById('dechargement-non').checked = true;
+                transportPanneaux = "non";
+                transportBarreaux = "non";
+                dechargement = "non";
             });
+
 
             // Gestionnaire pour le bouton de filtrage par repère
             document.getElementById('search-repere-button').addEventListener('click', function() {
@@ -1035,10 +1241,6 @@
             // Gestionnaire pour le changement de sélection de repère
             document.getElementById('repere-select').addEventListener('change', function() {
                 filterByRepere();
-                // Ne plus masquer le div de résultat si le tableau récapitulatif contient des éléments
-                if (!window.cumulativeResults || window.cumulativeResults.length === 0) {
-                    document.getElementById('site-result').style.display = 'none';
-                }
             });
 
             // Gestionnaire pour le bouton de calcul
@@ -1055,10 +1257,6 @@
 
             // Gestionnaire pour le changement de valeur dans le champ de quantité
             document.getElementById('quantity-input').addEventListener('input', function() {
-                // Ne plus masquer le div de résultat si le tableau récapitulatif contient des éléments
-                if (!window.cumulativeResults || window.cumulativeResults.length === 0) {
-                    document.getElementById('site-result').style.display = 'none';
-                }
             });
 
             // Gestionnaire pour les titres de fichiers
@@ -1160,11 +1358,14 @@
                 // Remplir le sélecteur de sites
                 populateSiteSelect(allSites);
 
-                // Rendre les données Excel
+                // Rendre les données Excel (nous les gardons pour la fonctionnalité)
                 document.getElementById('excel-data').innerHTML = renderExcelFiles(response);
 
                 // Configuration des gestionnaires d'événements après le rendu
                 setupEventHandlers();
+
+                // Masquer les données Excel
+                hideExcelData();
             })
             .catch(error => {
                 document.getElementById('loading').style.display = 'none';
