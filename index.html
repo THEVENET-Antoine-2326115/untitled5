@@ -424,7 +424,7 @@
     <!-- Options de transport (initialement masquées) -->
     <div id="transport-options" class="search-form" style="display: none;">
         <div class="transport-option">
-            <label>Transport panneaux:</label>
+            <label>Emballage:</label>
             <div class="radio-group">
                 <input type="radio" id="transport-panneaux-oui" name="transport-panneaux" value="oui">
                 <label for="transport-panneaux-oui">Oui</label>
@@ -1134,6 +1134,95 @@
             updateResultsTable();
         }
 
+        /**
+         * Calcule et affiche les forfaits logistique et suivi
+         * Cette fonction est appelée à chaque mise à jour du tableau récapitulatif
+         */
+        function calculerEtAfficherForfaits() {
+            // Vérifier si nous avons des résultats dans le tableau récapitulatif
+            if (!window.cumulativeResults || window.cumulativeResults.length === 0) {
+                console.log("Aucun forfait (aucun panneau sélectionné)");
+                return {
+                    logistique: 0,
+                    suivi: 0,
+                    total: 0
+                };
+            }
+
+            // Calculer la quantité totale de panneaux
+            let quantiteTotalePanneaux = 0;
+
+            window.cumulativeResults.forEach(result => {
+                quantiteTotalePanneaux += parseInt(result.quantity) || 0;
+            });
+
+            // Déterminer les forfaits unitaires en fonction de la quantité
+            let forfaitLogistiqueUnitaire = calculerForfaitLogistique(quantiteTotalePanneaux);
+            let forfaitSuiviUnitaire = calculerForfaitSuivi(quantiteTotalePanneaux);
+
+            // Calculer les forfaits totaux (forfait unitaire * quantité totale)
+            let forfaitLogistiqueTotal = forfaitLogistiqueUnitaire * quantiteTotalePanneaux;
+            let forfaitSuiviTotal = forfaitSuiviUnitaire * quantiteTotalePanneaux;
+            let forfaitTotal = forfaitLogistiqueTotal + forfaitSuiviTotal;
+
+            // Afficher les résultats dans la console
+            console.log("Nombre total de panneaux: " + quantiteTotalePanneaux);
+            console.log("Forfait logistique unitaire: " + forfaitLogistiqueUnitaire.toFixed(2) + " €");
+            console.log("Forfait logistique total: " + forfaitLogistiqueTotal.toFixed(2) + " €");
+            console.log("Forfait suivi unitaire: " + forfaitSuiviUnitaire.toFixed(2) + " €");
+            console.log("Forfait suivi total: " + forfaitSuiviTotal.toFixed(2) + " €");
+            console.log("Total des forfaits: " + forfaitTotal.toFixed(2) + " €");
+
+            return {
+                logistique: forfaitLogistiqueTotal,
+                suivi: forfaitSuiviTotal,
+                total: forfaitTotal
+            };
+        }
+
+        /**
+         * Calcule le forfait logistique unitaire en fonction de la quantité totale de panneaux
+         *
+         * @param {number} quantiteTotalePanneaux - Nombre total de panneaux
+         * @return {number} Le montant du forfait logistique unitaire
+         */
+        function calculerForfaitLogistique(quantiteTotalePanneaux) {
+            // Déterminer le forfait en fonction de la quantité
+            if (quantiteTotalePanneaux <= 0) {
+                return 0; // Pas de forfait si pas de panneaux
+            } else if (quantiteTotalePanneaux <= 25) {
+                return 213.78; // 0 à 25 panneaux
+            } else if (quantiteTotalePanneaux <= 50) {
+                return 187.06; // 26 à 50 panneaux
+            } else if (quantiteTotalePanneaux <= 75) {
+                return 160.34; // 51 à 75 panneaux
+            } else {
+                return 133.61; // Au-delà de 75 panneaux
+            }
+        }
+
+        /**
+         * Calcule le forfait suivi unitaire en fonction de la quantité totale de panneaux
+         *
+         * @param {number} quantiteTotalePanneaux - Nombre total de panneaux
+         * @return {number} Le montant du forfait suivi unitaire
+         */
+        function calculerForfaitSuivi(quantiteTotalePanneaux) {
+            // Déterminer le forfait en fonction de la quantité
+            if (quantiteTotalePanneaux <= 0) {
+                return 0; // Pas de forfait si pas de panneaux
+            } else if (quantiteTotalePanneaux <= 25) {
+                return 394.88; // 0 à 25 panneaux
+            } else if (quantiteTotalePanneaux <= 50) {
+                return 334.88; // 26 à 50 panneaux
+            } else if (quantiteTotalePanneaux <= 75) {
+                return 274.88; // 51 à 75 panneaux
+            } else {
+                return 214.87; // Au-delà de 75 panneaux
+            }
+        }
+
+
 // Fonction pour mettre à jour l'affichage du tableau de résultats
         function updateResultsTable() {
             const resultDiv = document.getElementById('site-result');
@@ -1165,7 +1254,7 @@
             <th>Site</th>
             <th>Repère</th>
             <th>Quantité</th>
-            <th>Transport Panneaux</th>
+            <th>Emballage</th>
             <th>Transport Barreaux</th>
             <th>Déchargement</th>
             <th>Action</th>
@@ -1225,6 +1314,18 @@
 
             // Ajouter événements pour les boutons
             setupResultButtonEvents();
+
+            try {
+                calculerEtAfficherForfaitLogistique();
+            } catch (error) {
+                console.error("Erreur lors du calcul du forfait logistique:", error);
+            }
+
+            try {
+                calculerEtAfficherForfaits();
+            } catch (error) {
+                console.error("Erreur lors du calcul des forfaits:", error);
+            }
         }
 
 // Fonction pour configurer les événements des boutons de résultat
@@ -1262,7 +1363,7 @@
                 dechargement = "non";
             });
 
-// Gestionnaires d'événements pour les boutons radio de transport panneaux
+// Gestionnaires d'événements pour les boutons radio de Emballage
             document.querySelectorAll('input[name="transport-panneaux"]').forEach(radio => {
                 radio.addEventListener('change', function() {
                     transportPanneaux = this.value;
