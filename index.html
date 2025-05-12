@@ -463,6 +463,12 @@
             </div>
         </div>
 
+        <!-- À ajouter après les boutons radio de manutention -->
+        <div id="manutention-days-container" style="display: none; margin-top: 10px; margin-left: 20px;">
+            <label for="manutention-days">Nombre de demi-journées :</label>
+            <input type="number" id="manutention-days" class="search-input" min="1" value="1" style="width: 60px;">
+        </div>
+
         <button id="validate-transport-button" class="search-button">Valider les options</button>
     </div>
 
@@ -505,6 +511,7 @@
         let transportBarreaux = "non";
         let dechargement = "non";
         let manutention = "non";
+        let manutentionDays = 0;
 
         // Configuration de l'authentification
         const authModal = document.getElementById('authModal');
@@ -977,7 +984,7 @@
             document.getElementById('quantity-input').value = 1;
         }
 
-        // Fonction pour valider les options de transport pour un site
+// Fonction pour valider les options de transport pour un site
         function validateTransportOptions() {
             const selectedSite = document.getElementById('site-select').value;
 
@@ -992,6 +999,16 @@
                 window.cumulativeResults = [];
             }
 
+            // Récupérer le nombre de demi-journées si la manutention est "oui"
+            let nbDemiJournees = 0;
+            if (manutention === "oui") {
+                nbDemiJournees = parseInt(document.getElementById('manutention-days').value) || 1;
+                if (nbDemiJournees < 1) {
+                    nbDemiJournees = 1;
+                    document.getElementById('manutention-days').value = 1;
+                }
+            }
+
             // Vérifier si une ligne d'options de transport existe déjà pour ce site
             const existingTransportIndex = window.cumulativeResults.findIndex(
                 result => result.isTransportOnly && result.site === selectedSite
@@ -1003,11 +1020,19 @@
                 window.cumulativeResults[existingTransportIndex].transportBarreaux = transportBarreaux;
                 window.cumulativeResults[existingTransportIndex].dechargement = dechargement;
                 window.cumulativeResults[existingTransportIndex].manutention = manutention;
+
+                // Ajouter le nombre de demi-journées seulement si manutention est "oui"
+                if (manutention === "oui") {
+                    window.cumulativeResults[existingTransportIndex].manutentionDays = nbDemiJournees;
+                } else {
+                    // Supprimer la propriété si elle existe
+                    delete window.cumulativeResults[existingTransportIndex].manutentionDays;
+                }
             } else {
                 // Aucune entrée existante, ajouter une nouvelle
                 const entryId = 'transport-' + Date.now();
 
-                window.cumulativeResults.push({
+                const newEntry = {
                     id: entryId,
                     site: selectedSite,
                     isTransportOnly: true,
@@ -1015,7 +1040,14 @@
                     transportBarreaux: transportBarreaux,
                     dechargement: dechargement,
                     manutention: manutention
-                });
+                };
+
+                // Ajouter le nombre de demi-journées seulement si manutention est "oui"
+                if (manutention === "oui") {
+                    newEntry.manutentionDays = nbDemiJournees;
+                }
+
+                window.cumulativeResults.push(newEntry);
             }
 
             // Mettre à jour l'affichage du tableau
@@ -1478,6 +1510,190 @@
             return 947.52;
         }
 
+        /**
+         * Calcule le prix de la manutention pour chaque site
+         * Cette fonction est appelée à chaque mise à jour du tableau récapitulatif
+         *
+         * @return {Object} Objet contenant les prix de manutention par site et le prix total
+         */
+        function calculerPrixManutention() {
+            console.log("=== DÉBUT DU CALCUL DU PRIX DE MANUTENTION ===");
+
+            // Vérifier si nous avons des résultats dans le tableau récapitulatif
+            if (!window.cumulativeResults || window.cumulativeResults.length === 0) {
+                console.log("Prix manutention: 0 € (aucun site avec manutention activée)");
+                return { total: 0, detailParSite: {} };
+            }
+
+            console.log("Contenu du tableau récapitulatif:", JSON.stringify(window.cumulativeResults, null, 2));
+
+            // Calculer le prix de la manutention pour chaque site
+            let prixTotalManutention = 0;
+            const detailParSite = {};
+
+            // Parcourir tous les éléments dans le tableau récapitulatif
+            window.cumulativeResults.forEach((result, index) => {
+                // Ignorer les éléments qui ne sont pas des options de transport
+                if (!result.isTransportOnly) {
+                    return;
+                }
+
+                // Ignorer les sites qui n'ont pas l'option manutention activée
+                if (result.manutention !== "oui" || !result.manutentionDays) {
+                    return;
+                }
+
+                const site = result.site;
+                const nbDemiJournees = parseInt(result.manutentionDays) || 0;
+
+                if (nbDemiJournees <= 0) {
+                    return;
+                }
+
+                // Déterminer le prix unitaire selon le site
+                const prixUnitaire = getPrixUnitaireManutention(site);
+                console.log(`Site ${site}: prix unitaire manutention = ${prixUnitaire} €`);
+
+                // Calculer le prix de manutention pour ce site
+                const prixManutentionSite = nbDemiJournees * prixUnitaire;
+                console.log(`Site ${site}: ${nbDemiJournees} demi-journée(s) * ${prixUnitaire} € = ${prixManutentionSite} €`);
+
+                // Ajouter au prix total
+                prixTotalManutention += prixManutentionSite;
+
+                // Stocker les détails pour ce site
+                detailParSite[site] = {
+                    nbDemiJournees: nbDemiJournees,
+                    prixUnitaire: prixUnitaire,
+                    prixManutention: prixManutentionSite
+                };
+            });
+
+            console.log(`Prix total de la manutention: ${prixTotalManutention.toFixed(2)} €`);
+            console.log("=== FIN DU CALCUL DU PRIX DE MANUTENTION ===");
+
+            return {
+                total: prixTotalManutention,
+                detailParSite: detailParSite
+            };
+        }
+
+        /**
+         * Détermine le prix unitaire de la manutention selon le site
+         *
+         * @param {string} site - Nom du site
+         * @return {number} Prix unitaire de la manutention
+         */
+        function getPrixUnitaireManutention(site) {
+            const siteUpper = site.toUpperCase();
+
+            // Groupe 1 (1467.84 €)
+            if (siteUpper.includes("SEYSSEL") ||
+                siteUpper.includes("CHAUTAGNE") ||
+                siteUpper.includes("BELLEY") ||
+                siteUpper.includes("BREGNIER-CORDON") ||
+                siteUpper.includes("SAULT-BRENAZ")) {
+                return 1467.84;
+            }
+
+            // Groupe 2 (829.34 €)
+            if (siteUpper.includes("PIERRE-BENITE") ||
+                siteUpper.includes("VAUGRIS") ||
+                siteUpper.includes("PEAGE DE ROUSSILLON") ||
+                siteUpper.includes("SAINT VALLIER") ||
+                siteUpper.includes("ST VALLIER") ||
+                siteUpper.includes("ST-VALLIER")) {
+                return 829.34;
+            }
+
+            // Groupe 3 (721.57 €)
+            if (siteUpper.includes("BOURG-LES-VALENCE") ||
+                siteUpper.includes("MONTELIMAR") ||
+                siteUpper.includes("BEAUCHASTEL") ||
+                siteUpper.includes("LOGIS-NEUF")) {
+                return 721.57;
+            }
+
+            // Groupe 4 (584.60 €)
+            if (siteUpper.includes("DONZERE MONDRAGON") ||
+                siteUpper.includes("AVIGNON") ||
+                siteUpper.includes("SAUVETERRE") ||
+                siteUpper.includes("CADEROUSSE") ||
+                siteUpper.includes("VALLABREGUES")) {
+                return 584.60;
+            }
+
+            // Par défaut, retourner le prix le plus bas
+            return 584.60;
+        }
+
+        /**
+         * Calcule le prix du grutage et l'ajoute au prix total de la manutention
+         * Cette fonction est appelée après calculerPrixManutention()
+         *
+         * @return {Object} Objet contenant les prix de grutage par site et le prix total
+         */
+        function calculerPrixGrutage() {
+            console.log("=== DÉBUT DU CALCUL DU PRIX DE GRUTAGE ===");
+
+            // Vérifier si nous avons des résultats dans le tableau récapitulatif
+            if (!window.cumulativeResults || window.cumulativeResults.length === 0) {
+                console.log("Prix grutage: 0 € (aucun site avec grutage activé)");
+                return { total: 0, detailParSite: {} };
+            }
+
+            // Calculer le prix du grutage pour chaque site
+            let prixTotalGrutage = 0;
+            const detailParSite = {};
+
+            // Parcourir tous les éléments dans le tableau récapitulatif
+            window.cumulativeResults.forEach((result, index) => {
+                // Ignorer les éléments qui ne sont pas des options de transport
+                if (!result.isTransportOnly) {
+                    return;
+                }
+
+                // Vérifier si l'option de déchargement (grutage) est activée
+                if (result.dechargement !== "oui") {
+                    return;
+                }
+
+                const site = result.site;
+
+                // Pour le grutage, on utilise le même nombre de demi-journées que pour la manutention si elle est activée
+                // Sinon, on considère une demi-journée par défaut
+                let nbDemiJournees = 1;
+                if (result.manutention === "oui" && result.manutentionDays) {
+                    nbDemiJournees = parseInt(result.manutentionDays) || 1;
+                }
+
+                // Le prix unitaire du grutage est fixe: 882 €
+                const prixUnitaireGrutage = 882;
+
+                // Calculer le prix du grutage pour ce site
+                const prixGrutageSite = nbDemiJournees * prixUnitaireGrutage;
+                console.log(`Site ${site}: ${nbDemiJournees} demi-journée(s) * ${prixUnitaireGrutage} € = ${prixGrutageSite} €`);
+
+                // Ajouter au prix total
+                prixTotalGrutage += prixGrutageSite;
+
+                // Stocker les détails pour ce site
+                detailParSite[site] = {
+                    nbDemiJournees: nbDemiJournees,
+                    prixUnitaire: prixUnitaireGrutage,
+                    prixGrutage: prixGrutageSite
+                };
+            });
+
+            console.log(`Prix total du grutage: ${prixTotalGrutage.toFixed(2)} €`);
+            console.log("=== FIN DU CALCUL DU PRIX DE GRUTAGE ===");
+
+            return {
+                total: prixTotalGrutage,
+                detailParSite: detailParSite
+            };
+        }
+
 
 // Fonction pour mettre à jour l'affichage du tableau de résultats
         function updateResultsTable() {
@@ -1500,65 +1716,71 @@
 
             // Préparer le HTML des résultats cumulés
             let finalResultsHtml = `
-    <div class="result-title">Récapitulatif total</div>
-    <div class="total-quantity-display">
-        <strong>Quantité totale de panneaux:</strong>
-        <span id="total-quantity-value">${totalQuantity}</span>
-    </div>
-    <table class="result-table">
-        <tr>
-            <th>Site</th>
-            <th>Repère</th>
-            <th>Quantité</th>
-            <th>Emballage</th>
-            <th>Transport Barreaux</th>
-            <th>Déchargement</th>
-            <th>Manutention</th>
-            <th>Action</th>
-        </tr>
-`;
+        <div class="result-title">Récapitulatif total</div>
+        <div class="total-quantity-display">
+            <strong>Quantité totale de panneaux:</strong>
+            <span id="total-quantity-value">${totalQuantity}</span>
+        </div>
+        <table class="result-table">
+            <tr>
+                <th>Site</th>
+                <th>Repère</th>
+                <th>Quantité</th>
+                <th>Emballage</th>
+                <th>Transport Barreaux</th>
+                <th>Déchargement</th>
+                <th>Manutention</th>
+                <th>Action</th>
+            </tr>
+    `;
 
-// Afficher tous les items du tableau cumulatif
+            // Afficher tous les items du tableau cumulatif
             for (const result of window.cumulativeResults) {
                 // Pour les entrées qui sont uniquement de transport
                 if (result.isTransportOnly) {
+                    // Préparation de l'affichage de la manutention
+                    let manutentionDisplay = result.manutention || 'non';
+                    if (result.manutention === 'oui' && result.manutentionDays) {
+                        manutentionDisplay = `${result.manutention} (${result.manutentionDays} demi-journée${result.manutentionDays > 1 ? 's' : ''})`;
+                    }
+
                     finalResultsHtml += `
-            <tr id="row-${result.id}" style="background-color: #f0f8ff;">
-                <td>${escapeHtml(result.site)}</td>
-                <td colspan="2" style="text-align: center; font-style: italic;">Options</td>
-                <td>${result.transportPanneaux}</td>
-                <td>${result.transportBarreaux}</td>
-                <td>${result.dechargement || 'non'}</td>
-                <td>${result.manutention}</td>
-                <td>
-                    <button class="delete-row-btn" data-id="${result.id}"
-                            style="background-color: #f44336; color: white; border: none;
-                                   padding: 5px 10px; border-radius: 3px; cursor: pointer;">
-                        Supprimer
-                    </button>
-                </td>
-            </tr>
-        `;
+                <tr id="row-${result.id}" style="background-color: #f0f8ff;">
+                    <td>${escapeHtml(result.site)}</td>
+                    <td colspan="2" style="text-align: center; font-style: italic;">Options</td>
+                    <td>${result.transportPanneaux}</td>
+                    <td>${result.transportBarreaux}</td>
+                    <td>${result.dechargement || 'non'}</td>
+                    <td>${manutentionDisplay}</td>
+                    <td>
+                        <button class="delete-row-btn" data-id="${result.id}"
+                                style="background-color: #f44336; color: white; border: none;
+                                       padding: 5px 10px; border-radius: 3px; cursor: pointer;">
+                            Supprimer
+                        </button>
+                    </td>
+                </tr>
+            `;
                 } else {
                     // Pour les entrées normales (produits)
                     finalResultsHtml += `
-            <tr id="row-${result.id}">
-                <td>${escapeHtml(result.site)}</td>
-                <td>${escapeHtml(result.description || '')}</td>
-                <td>${result.quantity || ''}</td>
-                <td>${result.transportPanneaux || ''}</td>
-                <td>${result.transportBarreaux || ''}</td>
-                <td>${result.dechargement || ''}</td>
-                <td>${result.manutention || ''}</td>
-                <td>
-                    <button class="delete-row-btn" data-id="${result.id}"
-                            style="background-color: #f44336; color: white; border: none;
-                                   padding: 5px 10px; border-radius: 3px; cursor: pointer;">
-                        Supprimer
-                    </button>
-                </td>
-            </tr>
-        `;
+                <tr id="row-${result.id}">
+                    <td>${escapeHtml(result.site)}</td>
+                    <td>${escapeHtml(result.description || '')}</td>
+                    <td>${result.quantity || ''}</td>
+                    <td>${result.transportPanneaux || ''}</td>
+                    <td>${result.transportBarreaux || ''}</td>
+                    <td>${result.dechargement || ''}</td>
+                    <td>${result.manutention || ''}</td>
+                    <td>
+                        <button class="delete-row-btn" data-id="${result.id}"
+                                style="background-color: #f44336; color: white; border: none;
+                                       padding: 5px 10px; border-radius: 3px; cursor: pointer;">
+                            Supprimer
+                        </button>
+                    </td>
+                </tr>
+            `;
                 }
             }
 
@@ -1590,6 +1812,18 @@
                 calculerPrixTransportBarreaux();
             } catch (error) {
                 console.error("Erreur lors du calcul du prix du transport des barreaux:", error);
+            }
+
+            try {
+                calculerPrixManutention();
+            } catch (error) {
+                console.error("Erreur lors du calcul du prix de la manutention:", error);
+            }
+
+            try {
+                calculerPrixGrutage();
+            } catch (error) {
+                console.error("Erreur lors du calcul du prix du grutage:", error);
             }
         }
 
@@ -1657,7 +1891,29 @@
                 radio.addEventListener('change', function() {
                     manutention = this.value;
                     console.log("Manutention:", manutention);
+
+                    // Afficher ou masquer le champ de nombre de demi-journées
+                    const manutentionDaysContainer = document.getElementById('manutention-days-container');
+                    if (manutention === "oui") {
+                        manutentionDaysContainer.style.display = "block";
+                    } else {
+                        manutentionDaysContainer.style.display = "none";
+                    }
                 });
+            });
+
+            document.getElementById('manutention-days').addEventListener('change', function() {
+                manutentionDays = parseInt(this.value) || 1;
+                if (manutentionDays < 1) {
+                    this.value = 1;
+                    manutentionDays = 1;
+                }
+                console.log("Nombre de demi-journées de manutention:", manutentionDays);
+
+                // Si le tableau récapitulatif est déjà affiché, le mettre à jour
+                if (window.cumulativeResults && window.cumulativeResults.length > 0) {
+                    updateResultsTable();
+                }
             });
 
             // Dans setupEventHandlers()
