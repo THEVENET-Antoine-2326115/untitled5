@@ -1694,6 +1694,77 @@
             };
         }
 
+        /**
+         * Calcule le prix total en additionnant tous les prix calculés
+         * Cette fonction est appelée après tous les autres calculs
+         *
+         * @return {Object} Objet contenant les détails de tous les prix et le prix total
+         */
+        function calculerPrixTotal() {
+            console.log("=== DÉBUT DU CALCUL DU PRIX TOTAL ===");
+
+            // Calculer ou récupérer tous les prix
+            let prixForfaits = 0;
+            try {
+                const resultForfaits = calculerEtAfficherForfaits();
+                prixForfaits = resultForfaits.total || 0;
+            } catch (error) {
+                console.error("Erreur lors du calcul des forfaits:", error);
+            }
+
+            let prixSoudage = 0;
+            try {
+                prixSoudage = calculerPrixSoudageBarreaux() || 0;
+            } catch (error) {
+                console.error("Erreur lors du calcul du prix des soudages de barreaux:", error);
+            }
+
+            let prixTransportBarreaux = 0;
+            try {
+                const resultTransport = calculerPrixTransportBarreaux();
+                prixTransportBarreaux = resultTransport.total || 0;
+            } catch (error) {
+                console.error("Erreur lors du calcul du prix du transport des barreaux:", error);
+            }
+
+            let prixManutention = 0;
+            try {
+                const resultManutention = calculerPrixManutention();
+                prixManutention = resultManutention.total || 0;
+            } catch (error) {
+                console.error("Erreur lors du calcul du prix de la manutention:", error);
+            }
+
+            let prixGrutage = 0;
+            try {
+                const resultGrutage = calculerPrixGrutage();
+                prixGrutage = resultGrutage.total || 0;
+            } catch (error) {
+                console.error("Erreur lors du calcul du prix du grutage:", error);
+            }
+
+            // Calculer le prix total
+            const prixTotal = prixForfaits + prixSoudage + prixTransportBarreaux + prixManutention + prixGrutage;
+
+            console.log("Détail des prix:");
+            console.log(`- Forfaits (logistique et suivi): ${prixForfaits.toFixed(2)} €`);
+            console.log(`- Soudage des barreaux: ${prixSoudage.toFixed(2)} €`);
+            console.log(`- Transport des barreaux: ${prixTransportBarreaux.toFixed(2)} €`);
+            console.log(`- Manutention: ${prixManutention.toFixed(2)} €`);
+            console.log(`- Grutage: ${prixGrutage.toFixed(2)} €`);
+            console.log(`PRIX TOTAL: ${prixTotal.toFixed(2)} €`);
+            console.log("=== FIN DU CALCUL DU PRIX TOTAL ===");
+
+            return {
+                prixForfaits: prixForfaits,
+                prixSoudage: prixSoudage,
+                prixTransportBarreaux: prixTransportBarreaux,
+                prixManutention: prixManutention,
+                prixGrutage: prixGrutage,
+                prixTotal: prixTotal
+            };
+        }
+
 
 // Fonction pour mettre à jour l'affichage du tableau de résultats
         function updateResultsTable() {
@@ -1714,13 +1785,34 @@
                 }
             }
 
-            // Préparer le HTML des résultats cumulés
+            // Calculer le prix total
+            let prixTotalDetails = { prixTotal: 0 };
+            try {
+                prixTotalDetails = calculerPrixTotal();
+            } catch (error) {
+                console.error("Erreur lors du calcul du prix total:", error);
+            }
+
+            // Préparer le HTML des résultats cumulés avec les totaux
+            let totalInfoHtml = `
+        <div class="total-quantity-display">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <strong>Quantité totale de panneaux:</strong>
+                    <span id="total-quantity-value">${totalQuantity}</span>
+                </div>
+                <div>
+                    <strong>Prix total:</strong>
+                    <span id="total-price-value" style="font-size: 20px; color: #e01b24;">${formatNumber(prixTotalDetails.prixTotal)} €</span>
+                </div>
+            </div>
+        </div>
+    `;
+
+            // Préparation du tableau récapitulatif
             let finalResultsHtml = `
         <div class="result-title">Récapitulatif total</div>
-        <div class="total-quantity-display">
-            <strong>Quantité totale de panneaux:</strong>
-            <span id="total-quantity-value">${totalQuantity}</span>
-        </div>
+        ${totalInfoHtml}
         <table class="result-table">
             <tr>
                 <th>Site</th>
@@ -1796,34 +1888,11 @@
             // Ajouter événements pour les boutons
             setupResultButtonEvents();
 
+            // Calculer le prix total (tous les calculs sont gérés dans cette fonction)
             try {
-                calculerEtAfficherForfaits();
+                calculerPrixTotal();
             } catch (error) {
-                console.error("Erreur lors du calcul des forfaits:", error);
-            }
-
-            try {
-                calculerPrixSoudageBarreaux();
-            } catch (error) {
-                console.error("Erreur lors du calcul du prix des soudages de barreaux:", error);
-            }
-
-            try {
-                calculerPrixTransportBarreaux();
-            } catch (error) {
-                console.error("Erreur lors du calcul du prix du transport des barreaux:", error);
-            }
-
-            try {
-                calculerPrixManutention();
-            } catch (error) {
-                console.error("Erreur lors du calcul du prix de la manutention:", error);
-            }
-
-            try {
-                calculerPrixGrutage();
-            } catch (error) {
-                console.error("Erreur lors du calcul du prix du grutage:", error);
+                console.error("Erreur lors du calcul du prix total:", error);
             }
         }
 
