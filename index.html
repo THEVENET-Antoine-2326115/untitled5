@@ -453,6 +453,16 @@
             </div>
         </div>
 
+        <div class="transport-option">
+            <label>Manutention</label>
+            <div class="radio-group">
+                <input type="radio" id="manutention-oui" name="manutention" value="oui">
+                <label for="manutention-oui">Oui</label>
+                <input type="radio" id="manutention-non" name="manutention" value="non" checked>
+                <label for="manutention-non">Non</label>
+            </div>
+        </div>
+
         <button id="validate-transport-button" class="search-button">Valider les options</button>
     </div>
 
@@ -494,6 +504,7 @@
         let transportPanneaux = "non";
         let transportBarreaux = "non";
         let dechargement = "non";
+        let manutention = "non";
 
         // Configuration de l'authentification
         const authModal = document.getElementById('authModal');
@@ -1222,6 +1233,293 @@
             }
         }
 
+        /**
+         * Calcule le prix des soudages de barreaux pour les panneaux supérieurs à St-Vallier
+         * Cette fonction est appelée à chaque mise à jour du tableau récapitulatif
+         *
+         * @return {number} Le prix total des soudages de barreaux
+         */
+        function calculerPrixSoudageBarreaux() {
+            // Vérifier si nous avons des résultats dans le tableau récapitulatif
+            if (!window.cumulativeResults || window.cumulativeResults.length === 0) {
+                console.log("Prix soudage barreaux: 0 € (aucun panneau sélectionné)");
+                return 0;
+            }
+
+            // Compteur pour les panneaux supérieurs de St-Vallier
+            let nbPanneauxSupStVallier = 0;
+
+            // Parcourir tous les panneaux dans le tableau récapitulatif
+            window.cumulativeResults.forEach(result => {
+                // Vérifier si c'est un panneau sur le site St-Vallier
+                const estStVallier = result.site &&
+                    (result.site.toUpperCase().includes("SAINT VALLIER") ||
+                        result.site.toUpperCase().includes("ST VALLIER") ||
+                        result.site.toUpperCase().includes("ST-VALLIER"));
+
+                // Vérifier si c'est un panneau supérieur
+                const estPanneauSuperieur = result.description &&
+                    (result.description.toLowerCase().includes("supérieur") ||
+                        result.description.toLowerCase().includes("superieur"));
+
+                // Si c'est un panneau supérieur à St-Vallier, ajouter sa quantité au compteur
+                if (estStVallier && estPanneauSuperieur) {
+                    const quantite = parseInt(result.quantity) || 0;
+                    nbPanneauxSupStVallier += quantite;
+                }
+            });
+
+            // Calculer le prix total des soudages de barreaux
+            const prixUnitaireSoudage = 533.56;
+            const prixTotalSoudage = nbPanneauxSupStVallier * prixUnitaireSoudage;
+
+            // Afficher les résultats dans la console
+            console.log("Nombre de panneaux supérieurs à St-Vallier: " + nbPanneauxSupStVallier);
+            console.log("Prix unitaire du soudage de barreaux: " + prixUnitaireSoudage.toFixed(2) + " €");
+            console.log("Prix total des soudages de barreaux: " + prixTotalSoudage.toFixed(2) + " €");
+
+            return prixTotalSoudage;
+        }
+
+        /**
+         * Calcule le prix du transport des barreaux pour chaque site
+         * Cette fonction est appelée à chaque mise à jour du tableau récapitulatif
+         *
+         * @return {Object} Objet contenant les prix de transport par site et le prix total
+         */
+        /**
+         * Calcule le prix du transport des barreaux pour chaque site
+         * Cette fonction est appelée à chaque mise à jour du tableau récapitulatif
+         *
+         * @return {Object} Objet contenant les prix de transport par site et le prix total
+         */
+        function calculerPrixTransportBarreaux() {
+            console.log("=== DÉBUT DU CALCUL DU PRIX DE TRANSPORT DES BARREAUX ===");
+
+            // Vérifier si nous avons des résultats dans le tableau récapitulatif
+            if (!window.cumulativeResults || window.cumulativeResults.length === 0) {
+                console.log("Prix transport barreaux: 0 € (aucun panneau sélectionné)");
+                return { total: 0, detailParSite: {} };
+            }
+
+            console.log("Nombre d'éléments dans le tableau récapitulatif:", window.cumulativeResults.length);
+            console.log("Contenu du tableau récapitulatif:", JSON.stringify(window.cumulativeResults, null, 2));
+
+            // Objet pour stocker les informations par site
+            const sitesInfo = {};
+            // Objet pour suivre les sites qui ont l'option de transport des barreaux activée
+            const sitesAvecTransportBarreaux = {};
+
+            // Vérifier d'abord quels sites ont l'option "transport barreaux" sur "oui"
+            console.log("Recherche des sites avec option transport barreaux...");
+            window.cumulativeResults.forEach((result, index) => {
+                console.log(`Analyse de l'élément ${index}:`, result);
+
+                if (!result.site) {
+                    console.log("  Pas de site spécifié, ignoré");
+                    return;
+                }
+
+                // Vérifier si l'élément a la propriété transportBarreaux
+                if (result.transportBarreaux) {
+                    console.log(`  Trouvé option transport barreaux pour le site ${result.site}: ${result.transportBarreaux}`);
+
+                    // Vérifier si l'option est sur "oui"
+                    const estTransportActive = result.transportBarreaux.toLowerCase() === "oui";
+
+                    console.log(`  Option transport active: ${estTransportActive}`);
+
+                    // Marquer ce site comme ayant l'option de transport activée
+                    if (estTransportActive) {
+                        sitesAvecTransportBarreaux[result.site] = true;
+                    }
+                }
+            });
+
+            console.log("Sites avec transport barreaux activé:", sitesAvecTransportBarreaux);
+
+            // Pour chaque panneau, calculer le poids selon le type (inférieur/supérieur)
+            console.log("Calcul des poids par site...");
+            window.cumulativeResults.forEach((result, index) => {
+                if (!result.site) {
+                    console.log(`Élément ${index} sans site, ignoré`);
+                    return;
+                }
+
+                // Ignorer l'élément s'il a isTransportOnly = true (c'est une option, pas un panneau)
+                if (result.isTransportOnly) {
+                    console.log(`Élément ${index} est une option de transport, ignoré pour le calcul de poids`);
+                    return;
+                }
+
+                // Ignorer les sites qui n'ont pas l'option transport barreaux activée
+                if (!sitesAvecTransportBarreaux[result.site]) {
+                    console.log(`Site ${result.site} n'a pas l'option transport barreaux activée, ignoré`);
+                    return;
+                }
+
+                console.log(`Analyse panneau ${index}:`, result);
+
+                // Initialiser les infos du site si nécessaire
+                if (!sitesInfo[result.site]) {
+                    sitesInfo[result.site] = {
+                        poidsTotal: 0,
+                        nombrePanneauxInferieurs: 0,
+                        nombrePanneauxSuperieurs: 0,
+                        prixUnitaire: 0
+                    };
+                    console.log(`  Initialisation des infos pour le site ${result.site}`);
+                }
+
+                // Déterminer le prix unitaire selon le site
+                sitesInfo[result.site].prixUnitaire = getPrixUnitaireTransport(result.site);
+                console.log(`  Prix unitaire pour ${result.site}: ${sitesInfo[result.site].prixUnitaire} €`);
+
+                // Vérifier si c'est un panneau (il doit avoir une description)
+                if (!result.description) {
+                    console.log(`  Pas de description, ignoré`);
+                    return;
+                }
+
+                // Ignorer les entrées qui ne sont pas des panneaux
+                if (!result.description.toLowerCase().includes("panneau")) {
+                    console.log(`  Pas un panneau, ignoré`);
+                    return;
+                }
+
+                // Déterminer si c'est un panneau inférieur ou supérieur
+                const estPanneauSuperieur = result.description.toLowerCase().includes("supérieur") ||
+                    result.description.toLowerCase().includes("superieur");
+
+                const estPanneauInferieur = result.description.toLowerCase().includes("inférieur") ||
+                    result.description.toLowerCase().includes("inferieur");
+
+                console.log(`  Est panneau supérieur: ${estPanneauSuperieur}`);
+                console.log(`  Est panneau inférieur: ${estPanneauInferieur}`);
+
+                // Obtenir la quantité
+                const quantite = parseInt(result.quantity) || 0;
+                console.log(`  Quantité: ${quantite}`);
+
+                // Calculer le poids et l'ajouter au poids total du site
+                if (estPanneauSuperieur) {
+                    sitesInfo[result.site].nombrePanneauxSuperieurs += quantite;
+                    const poidsAjoute = quantite * 0.4284;
+                    sitesInfo[result.site].poidsTotal += poidsAjoute;
+                    console.log(`  Ajout de ${quantite} panneaux supérieurs (${poidsAjoute.toFixed(4)} tonnes)`);
+                } else if (estPanneauInferieur) {
+                    sitesInfo[result.site].nombrePanneauxInferieurs += quantite;
+                    const poidsAjoute = quantite * 0.2676;
+                    sitesInfo[result.site].poidsTotal += poidsAjoute;
+                    console.log(`  Ajout de ${quantite} panneaux inférieurs (${poidsAjoute.toFixed(4)} tonnes)`);
+                } else {
+                    console.log(`  Type de panneau non identifié, ignoré`);
+                }
+            });
+
+            console.log("Résumé des informations par site après calcul des poids:", sitesInfo);
+
+            // Calculer le prix de transport pour chaque site et le prix total
+            let prixTotalTransport = 0;
+            const detailParSite = {};
+
+            console.log("Calcul des prix de transport par site...");
+            for (const site in sitesInfo) {
+                const info = sitesInfo[site];
+                console.log(`Calcul pour le site ${site}:`);
+
+                // Calculer le nombre de camions nécessaires (arrondi à l'entier supérieur)
+                const nombreCamions = Math.ceil(info.poidsTotal / 19);
+                console.log(`  Poids total: ${info.poidsTotal.toFixed(4)} tonnes`);
+                console.log(`  Nombre de camions nécessaires: ${nombreCamions}`);
+
+                // Calculer le prix de transport pour ce site
+                const prixTransportSite = nombreCamions * info.prixUnitaire;
+                console.log(`  Prix unitaire: ${info.prixUnitaire.toFixed(2)} €`);
+                console.log(`  Prix transport pour ce site: ${prixTransportSite.toFixed(2)} €`);
+
+                // Ajouter au prix total
+                prixTotalTransport += prixTransportSite;
+                console.log(`  Prix total cumulé: ${prixTotalTransport.toFixed(2)} €`);
+
+                // Stocker les détails pour ce site
+                detailParSite[site] = {
+                    nombrePanneauxInferieurs: info.nombrePanneauxInferieurs,
+                    nombrePanneauxSuperieurs: info.nombrePanneauxSuperieurs,
+                    poidsTotal: info.poidsTotal,
+                    nombreCamions: nombreCamions,
+                    prixUnitaire: info.prixUnitaire,
+                    prixTransport: prixTransportSite
+                };
+
+                // Afficher les détails dans la console
+                console.log(`Site: ${site}`);
+                console.log(`  Panneaux inférieurs: ${info.nombrePanneauxInferieurs} (${(info.nombrePanneauxInferieurs * 0.2676).toFixed(4)} tonnes)`);
+                console.log(`  Panneaux supérieurs: ${info.nombrePanneauxSuperieurs} (${(info.nombrePanneauxSuperieurs * 0.4284).toFixed(4)} tonnes)`);
+                console.log(`  Poids total: ${info.poidsTotal.toFixed(4)} tonnes`);
+                console.log(`  Nombre de camions: ${nombreCamions}`);
+                console.log(`  Prix unitaire: ${info.prixUnitaire.toFixed(2)} €`);
+                console.log(`  Prix transport: ${prixTransportSite.toFixed(2)} €`);
+            }
+
+            console.log(`Prix total du transport des barreaux: ${prixTotalTransport.toFixed(2)} €`);
+            console.log("=== FIN DU CALCUL DU PRIX DE TRANSPORT DES BARREAUX ===");
+
+            return {
+                total: prixTotalTransport,
+                detailParSite: detailParSite
+            };
+        }
+
+        /**
+         * Détermine le prix unitaire du transport selon le site
+         *
+         * @param {string} site - Nom du site
+         * @return {number} Prix unitaire du transport
+         */
+        function getPrixUnitaireTransport(site) {
+            const siteUpper = site.toUpperCase();
+
+            // Groupe 1 (1545.60 €)
+            if (siteUpper.includes("SEYSSEL") ||
+                siteUpper.includes("CHAUTAGNE") ||
+                siteUpper.includes("BELLEY") ||
+                siteUpper.includes("BREGNIER-CORDON") ||
+                siteUpper.includes("SAULT-BRENAZ")) {
+                return 1545.60;
+            }
+
+            // Groupe 2 (1360.80 €)
+            if (siteUpper.includes("PIERRE-BENITE") ||
+                siteUpper.includes("VAUGRIS") ||
+                siteUpper.includes("PEAGE DE ROUSSILLON") ||
+                siteUpper.includes("SAINT VALLIER") ||
+                siteUpper.includes("ST VALLIER") ||
+                siteUpper.includes("ST-VALLIER")) {
+                return 1360.80;
+            }
+
+            // Groupe 3 (1108.80 €)
+            if (siteUpper.includes("BOURG-LES-VALENCE") ||
+                siteUpper.includes("MONTELIMAR") ||
+                siteUpper.includes("BEAUCHASTEL") ||
+                siteUpper.includes("LOGIS-NEUF")) {
+                return 1108.80;
+            }
+
+            // Groupe 4 (947.52 €)
+            if (siteUpper.includes("DONZERE MONDRAGON") ||
+                siteUpper.includes("AVIGNON") ||
+                siteUpper.includes("SAUVETERRE") ||
+                siteUpper.includes("CADEROUSSE") ||
+                siteUpper.includes("VALLABREGUES")) {
+                return 947.52;
+            }
+
+            // Par défaut, retourner le prix le plus bas
+            return 947.52;
+        }
+
 
 // Fonction pour mettre à jour l'affichage du tableau de résultats
         function updateResultsTable() {
@@ -1257,6 +1555,7 @@
             <th>Emballage</th>
             <th>Transport Barreaux</th>
             <th>Déchargement</th>
+            <th>Manutention</th>
             <th>Action</th>
         </tr>
 `;
@@ -1272,6 +1571,7 @@
                 <td>${result.transportPanneaux}</td>
                 <td>${result.transportBarreaux}</td>
                 <td>${result.dechargement || 'non'}</td>
+                <td>${result.manutention}</td>
                 <td>
                     <button class="delete-row-btn" data-id="${result.id}"
                             style="background-color: #f44336; color: white; border: none;
@@ -1291,6 +1591,7 @@
                 <td>${result.transportPanneaux || ''}</td>
                 <td>${result.transportBarreaux || ''}</td>
                 <td>${result.dechargement || ''}</td>
+                <td>${result.manutention || ''}</td>
                 <td>
                     <button class="delete-row-btn" data-id="${result.id}"
                             style="background-color: #f44336; color: white; border: none;
@@ -1316,15 +1617,21 @@
             setupResultButtonEvents();
 
             try {
-                calculerEtAfficherForfaitLogistique();
-            } catch (error) {
-                console.error("Erreur lors du calcul du forfait logistique:", error);
-            }
-
-            try {
                 calculerEtAfficherForfaits();
             } catch (error) {
                 console.error("Erreur lors du calcul des forfaits:", error);
+            }
+
+            try {
+                calculerPrixSoudageBarreaux();
+            } catch (error) {
+                console.error("Erreur lors du calcul du prix des soudages de barreaux:", error);
+            }
+
+            try {
+                calculerPrixTransportBarreaux();
+            } catch (error) {
+                console.error("Erreur lors du calcul du prix du transport des barreaux:", error);
             }
         }
 
@@ -1384,6 +1691,14 @@
                 radio.addEventListener('change', function() {
                     dechargement = this.value;
                     console.log("Déchargement:", dechargement);
+                });
+            });
+
+            // Gestionnaires d'événements pour les boutons radio de déchargement
+            document.querySelectorAll('input[name="manutention"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    manutention = this.value;
+                    console.log("Manutention:", manutention);
                 });
             });
 
