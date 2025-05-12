@@ -309,6 +309,12 @@
             align-items: center;
             gap: 10px;
             margin-right: 20px;
+            margin-bottom: 10px; /* Ajoute un peu d'espace vertical entre les options */
+        }
+
+        .transport-option label {
+            margin-right: 5px;
+            white-space: nowrap; /* Empêche le texte de passer à la ligne */
         }
 
         .radio-group {
@@ -319,6 +325,12 @@
 
         .radio-group input[type="radio"] {
             margin-left: 10px;
+            margin-right: 3px; /* Espace entre le bouton radio et son label */
+        }
+
+        /* S'assurer que tous les labels sont bien alignés */
+        .radio-group label {
+            margin-right: 10px;
         }
 
         .total-quantity-display {
@@ -361,6 +373,19 @@
             text-align: center;
         }
 
+        .logo-moscatelli {
+            min-height: 100px;
+            min-width: 150px;
+        }
+
+        .logo-cnr {
+            min-height: 300px;
+            min-width: 150px;
+            object-fit: contain;
+            unc sybau js nd t u ng m wrkg
+        }
+
+        /* Styles spécifiques pour le conteneur des logos */
         .logos-container {
             display: flex;
             justify-content: center;
@@ -368,16 +393,7 @@
             gap: 50px; /* Espace entre les deux logos */
             max-width: 1200px;
             margin: 0 auto;
-        }
-
-        .logo-moscatelli {
-            max-height: 80px;
-            width: auto;
-        }
-
-        .logo-cnr {
-            max-height: 60px; /* Légèrement plus petit si nécessaire */
-            width: auto;
+            padding: 10px 0;
         }
     </style>
 </head>
@@ -423,15 +439,6 @@
 
     <!-- Options de transport (initialement masquées) -->
     <div id="transport-options" class="search-form" style="display: none;">
-        <div class="transport-option">
-            <label>Emballage:</label>
-            <div class="radio-group">
-                <input type="radio" id="transport-panneaux-oui" name="transport-panneaux" value="oui">
-                <label for="transport-panneaux-oui">Oui</label>
-                <input type="radio" id="transport-panneaux-non" name="transport-panneaux" value="non" checked>
-                <label for="transport-panneaux-non">Non</label>
-            </div>
-        </div>
 
         <div class="transport-option">
             <label>Transport barreaux:</label>
@@ -443,18 +450,10 @@
             </div>
         </div>
 
-        <div class="transport-option">
-            <label>Grue à prévoir sur le site ?</label>
-            <div class="radio-group">
-                <input type="radio" id="dechargement-oui" name="dechargement" value="oui">
-                <label for="dechargement-oui">Oui</label>
-                <input type="radio" id="dechargement-non" name="dechargement" value="non" checked>
-                <label for="dechargement-non">Non</label>
-            </div>
-        </div>
 
-        <div class="transport-option">
-            <label>Manutention</label>
+        <!-- Option Manutention (modifiée pour être cohérente) -->
+        <div id="manutention-container" class="transport-option" style="display: none;">
+            <label>Manutention:</label>
             <div class="radio-group">
                 <input type="radio" id="manutention-oui" name="manutention" value="oui">
                 <label for="manutention-oui">Oui</label>
@@ -465,9 +464,22 @@
 
         <!-- À ajouter après les boutons radio de manutention -->
         <div id="manutention-days-container" style="display: none; margin-top: 10px; margin-left: 20px;">
-            <label for="manutention-days">Nombre de demi-journées :</label>
+            <label for="manutention-days">½ journées de manutention:</label>
             <input type="number" id="manutention-days" class="search-input" min="1" value="1" style="width: 60px;">
         </div>
+
+        <!-- Option Grue (modifiée pour être cohérente) -->
+        <div id="dechargement-container" class="transport-option" style="display: none;">
+            <label>Grue à prévoir sur le site:</label>
+            <div class="radio-group">
+                <input type="radio" id="dechargement-oui" name="dechargement" value="oui">
+                <label for="dechargement-oui">Oui</label>
+                <input type="radio" id="dechargement-non" name="dechargement" value="non" checked>
+                <label for="dechargement-non">Non</label>
+            </div>
+        </div>
+
+
 
         <button id="validate-transport-button" class="search-button">Valider les options</button>
     </div>
@@ -511,7 +523,6 @@
         let transportBarreaux = "non";
         let dechargement = "non";
         let manutention = "non";
-        let manutentionDays = 0;
 
         // Configuration de l'authentification
         const authModal = document.getElementById('authModal');
@@ -1816,12 +1827,11 @@
         <table class="result-table">
             <tr>
                 <th>Site</th>
-                <th>Repère</th>
+                <th>Repère de panneaux</th>
                 <th>Quantité</th>
-                <th>Emballage</th>
                 <th>Transport Barreaux</th>
-                <th>Déchargement</th>
                 <th>Manutention</th>
+                <th>Grue</th>
                 <th>Action</th>
             </tr>
     `;
@@ -1840,7 +1850,6 @@
                 <tr id="row-${result.id}" style="background-color: #f0f8ff;">
                     <td>${escapeHtml(result.site)}</td>
                     <td colspan="2" style="text-align: center; font-style: italic;">Options</td>
-                    <td>${result.transportPanneaux}</td>
                     <td>${result.transportBarreaux}</td>
                     <td>${result.dechargement || 'non'}</td>
                     <td>${manutentionDisplay}</td>
@@ -1923,7 +1932,6 @@
                 document.getElementById('quantity-filter').style.display = 'none';
 
                 // Réinitialiser les boutons radio à leur valeur par défaut
-                document.getElementById('transport-panneaux-non').checked = true;
                 document.getElementById('transport-barreaux-non').checked = true;
                 document.getElementById('dechargement-non').checked = true;
                 transportPanneaux = "non";
@@ -1931,19 +1939,25 @@
                 dechargement = "non";
             });
 
-// Gestionnaires d'événements pour les boutons radio de Emballage
-            document.querySelectorAll('input[name="transport-panneaux"]').forEach(radio => {
-                radio.addEventListener('change', function() {
-                    transportPanneaux = this.value;
-                    console.log("Transport panneaux:", transportPanneaux);
-                });
-            });
-
-// Gestionnaires d'événements pour les boutons radio de transport barreaux
+            // Gestionnaires d'événements pour les boutons radio de transport barreaux
             document.querySelectorAll('input[name="transport-barreaux"]').forEach(radio => {
                 radio.addEventListener('change', function() {
                     transportBarreaux = this.value;
                     console.log("Transport barreaux:", transportBarreaux);
+
+                    // Afficher ou masquer l'option de manutention
+                    const manutentionContainer = document.getElementById('manutention-container');
+
+                    if (transportBarreaux === "oui") {
+                        manutentionContainer.style.display = "block";  // Afficher l'option de manutention
+                    } else {
+                        manutentionContainer.style.display = "none";   // Masquer l'option de manutention
+
+                        // Réinitialiser l'option de manutention à "non"
+                        document.getElementById('manutention-non').checked = true;
+                        manutention = "non";
+
+                    }
                 });
             });
 
@@ -1955,7 +1969,7 @@
                 });
             });
 
-            // Gestionnaires d'événements pour les boutons radio de déchargement
+            // Gestionnaires d'événements pour les boutons radio de manutention
             document.querySelectorAll('input[name="manutention"]').forEach(radio => {
                 radio.addEventListener('change', function() {
                     manutention = this.value;
@@ -1963,10 +1977,18 @@
 
                     // Afficher ou masquer le champ de nombre de demi-journées
                     const manutentionDaysContainer = document.getElementById('manutention-days-container');
+                    const dechargementContainer = document.getElementById('dechargement-container');
+
                     if (manutention === "oui") {
                         manutentionDaysContainer.style.display = "block";
+                        dechargementContainer.style.display = "block";  // Afficher l'option de grue
                     } else {
                         manutentionDaysContainer.style.display = "none";
+                        dechargementContainer.style.display = "none";   // Masquer l'option de grue
+
+                        // Réinitialiser l'option de déchargement à "non"
+                        document.getElementById('dechargement-non').checked = true;
+                        dechargement = "non";
                     }
                 });
             });
@@ -1998,9 +2020,8 @@
                 document.getElementById('repere-select').value = '';
                 // Masquer le formulaire de quantité
                 document.getElementById('quantity-filter').style.display = 'none';
+                document.getElementById('dechargement-container').style.display = 'none';
 
-                // Réinitialiser les boutons radio à leur valeur par défaut
-                document.getElementById('transport-panneaux-non').checked = true;
                 document.getElementById('transport-barreaux-non').checked = true;
                 document.getElementById('dechargement-non').checked = true;
                 transportPanneaux = "non";
