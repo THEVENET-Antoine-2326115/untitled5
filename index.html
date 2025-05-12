@@ -1027,7 +1027,6 @@
 
             if (existingTransportIndex !== -1) {
                 // Une entrée existe déjà, mettre à jour plutôt qu'ajouter
-                window.cumulativeResults[existingTransportIndex].transportPanneaux = transportPanneaux;
                 window.cumulativeResults[existingTransportIndex].transportBarreaux = transportBarreaux;
                 window.cumulativeResults[existingTransportIndex].dechargement = dechargement;
                 window.cumulativeResults[existingTransportIndex].manutention = manutention;
@@ -1047,7 +1046,6 @@
                     id: entryId,
                     site: selectedSite,
                     isTransportOnly: true,
-                    transportPanneaux: transportPanneaux,
                     transportBarreaux: transportBarreaux,
                     dechargement: dechargement,
                     manutention: manutention
