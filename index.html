@@ -1002,6 +1002,7 @@
                 window.cumulativeResults[existingTransportIndex].transportPanneaux = transportPanneaux;
                 window.cumulativeResults[existingTransportIndex].transportBarreaux = transportBarreaux;
                 window.cumulativeResults[existingTransportIndex].dechargement = dechargement;
+                window.cumulativeResults[existingTransportIndex].manutention = manutention;
             } else {
                 // Aucune entrée existante, ajouter une nouvelle
                 const entryId = 'transport-' + Date.now();
@@ -1012,7 +1013,8 @@
                     isTransportOnly: true,
                     transportPanneaux: transportPanneaux,
                     transportBarreaux: transportBarreaux,
-                    dechargement: dechargement
+                    dechargement: dechargement,
+                    manutention: manutention
                 });
             }
 
@@ -1020,51 +1022,7 @@
             updateResultsTable();
         }
 
-// Fonction pour valider les options de transport pour un site
-        function validateTransportForSite() {
-            const selectedSite = document.getElementById('site-select').value;
 
-            // Vérifier qu'un site est sélectionné
-            if (!selectedSite) {
-                return;
-            }
-
-            // Si c'est la première fois que l'on ajoute un résultat
-            if (!window.cumulativeResults) {
-                window.cumulativeResults = [];
-            }
-
-            // Vérifier si une entrée de transport existe déjà pour ce site
-            const existingTransportIndex = window.cumulativeResults.findIndex(
-                result => result.isTransportOnly && result.site === selectedSite
-            );
-
-            if (existingTransportIndex !== -1) {
-                // Une entrée existe déjà, mettre à jour plutôt qu'ajouter
-                window.cumulativeResults[existingTransportIndex].transportPanneaux = transportPanneaux;
-                window.cumulativeResults[existingTransportIndex].transportBarreaux = transportBarreaux;
-
-                // Afficher un message pour informer l'utilisateur
-                alert("Les options de transport pour ce site ont été mises à jour.");
-            } else {
-                // Aucune entrée existante, ajouter une nouvelle
-                const entryId = 'transport-' + Date.now();
-
-                window.cumulativeResults.push({
-                    id: entryId,
-                    site: selectedSite,
-                    isTransportOnly: true,
-                    transportPanneaux: transportPanneaux,
-                    transportBarreaux: transportBarreaux
-                });
-            }
-
-            // Mettre à jour l'affichage du tableau
-            updateResultsTable();
-
-            // Afficher le résultat
-            document.getElementById('site-result').style.display = 'block';
-        }
 
         // Fonction pour masquer les fichiers Excel
         function hideExcelData() {
