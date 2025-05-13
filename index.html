@@ -394,6 +394,27 @@
             margin: 0 auto;
             padding: 10px 0;
         }
+
+        .export-button {
+            padding: 10px 20px;
+            background-color: #0096FF;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background-color 0.3s;
+        }
+
+        .export-button:hover {
+            background-color: #89CFF0;
+        }
+
+        .export-button:disabled {
+            background-color: #87CEEB;
+            cursor: not-allowed;
+        }
+
     </style>
 </head>
 <body>
@@ -1864,11 +1885,27 @@
                 console.error("Erreur lors du calcul du prix du grutage des panneaux:", error);
             }
 
+            let prixEmballage = 0;
+            try {
+                prixEmballage = calculerPrixEmballage() || 0;
+            } catch (error) {
+                console.error("Erreur lors du calcul du prix d'emballage:", error);
+            }
+
+            // Ajouter le calcul du prix de montage
+            let prixMontage = 0;
+            try {
+                prixMontage = calculerPrixMontage() || 0;
+            } catch (error) {
+                console.error("Erreur lors du calcul du prix de montage des panneaux:", error);
+            }
+
             // Calculer le prix total
             const prixTotal = prixForfaits + prixSoudage +
                 prixTransportBarreaux + prixTransportPanneaux +
                 prixManutention + prixManutentionPanneaux +
-                prixGrutage + prixGrutagePanneaux;
+                prixGrutage + prixGrutagePanneaux +
+                prixEmballage + prixMontage;
 
             console.log("Détail des prix:");
             console.log(`- Forfaits (logistique et suivi): ${prixForfaits.toFixed(2)} €`);
@@ -1879,6 +1916,8 @@
             console.log(`- Manutention des panneaux: ${prixManutentionPanneaux.toFixed(2)} €`);
             console.log(`- Grutage des barreaux: ${prixGrutage.toFixed(2)} €`);
             console.log(`- Grutage des panneaux: ${prixGrutagePanneaux.toFixed(2)} €`);
+            console.log(`- Emballage: ${prixEmballage.toFixed(2)} €`);
+            console.log(`- Montage des panneaux: ${prixMontage.toFixed(2)} €`);
             console.log(`PRIX TOTAL: ${prixTotal.toFixed(2)} €`);
             console.log("=== FIN DU CALCUL DU PRIX TOTAL ===");
 
@@ -1891,6 +1930,8 @@
                 prixManutentionPanneaux: prixManutentionPanneaux,
                 prixGrutage: prixGrutage,
                 prixGrutagePanneaux: prixGrutagePanneaux,
+                prixEmballage: prixEmballage,
+                prixMontage: prixMontage,
                 prixTotal: prixTotal
             };
         }
@@ -2329,6 +2370,51 @@
             return prixTotalEmballage;
         }
 
+        /**
+         * Calcule le prix du montage des panneaux
+         * Cette fonction est appelée à chaque mise à jour du tableau récapitulatif
+         *
+         * @return {number} Le prix total du montage des panneaux
+         */
+        function calculerPrixMontage() {
+            console.log("=== DÉBUT DU CALCUL DU PRIX DE MONTAGE ===");
+
+            // Vérifier si nous avons des résultats dans le tableau récapitulatif
+            if (!window.cumulativeResults || window.cumulativeResults.length === 0) {
+                console.log("Prix montage: 0 € (aucun panneau sélectionné)");
+                return 0;
+            }
+
+            let prixTotalMontage = 0;
+
+            // Parcourir tous les panneaux dans le tableau récapitulatif
+            window.cumulativeResults.forEach((result) => {
+                // Ignorer les lignes qui sont des options de transport
+                if (result.isTransportOnly) {
+                    return;
+                }
+
+                // Vérifier si c'est un panneau (il doit avoir une description)
+                if (!result.description || !result.description.toLowerCase().includes("panneau")) {
+                    return;
+                }
+
+                // Récupérer la quantité et le prix unitaire (totalPrice contient déjà le sous-total multiplié par la quantité)
+                const quantite = parseInt(result.quantity) || 0;
+                const sousTotal = result.totalPrice || 0;
+
+                console.log(`Panneau "${result.description}" - Quantité: ${quantite}, Prix: ${sousTotal.toFixed(2)} €`);
+
+                // Ajouter au prix total de montage
+                prixTotalMontage += sousTotal;
+            });
+
+            console.log(`Prix total du montage des panneaux: ${prixTotalMontage.toFixed(2)} €`);
+            console.log("=== FIN DU CALCUL DU PRIX DE MONTAGE ===");
+
+            return prixTotalMontage;
+        }
+
 
 // Fonction pour mettre à jour l'affichage du tableau de résultats
         function updateResultsTable() {
@@ -2447,7 +2533,10 @@
 
             finalResultsHtml += `
         </table>
+        <div style="display: flex; gap: 15px; margin-top: 15px;">
         <button id="reset-results" class="reset-button">Tout réinitialiser</button>
+        <button id="export-excel" class="export-button">Exporter vers Excel</button>
+    </div>
     `;
 
             // Afficher les résultats finaux
@@ -2646,6 +2735,32 @@
                 });
             });
 
+// Dans la fonction setupResultButtonEvents(), modifiez la partie concernant le bouton d'exportation
+            const exportButton = document.getElementById('export-excel');
+            if (exportButton) {
+                console.log("Bouton d'exportation trouvé");
+                exportButton.addEventListener('click', function() {
+                    console.log("Clic sur le bouton d'exportation");
+                    // Désactiver le bouton pendant l'exportation
+                    this.disabled = true;
+                    this.textContent = "Exportation en cours...";
+
+                    // Appeler la fonction d'exportation
+                    exportToExcel().then(() => {
+                        console.log("Exportation terminée avec succès");
+                        this.disabled = false;
+                        this.textContent = "Exporter vers Excel";
+                    }).catch(error => {
+                        console.error("Erreur lors de l'exportation:", error);
+                        this.disabled = false;
+                        this.textContent = "Exporter vers Excel";
+                        alert("Une erreur est survenue lors de l'exportation: " + error.message);
+                    });
+                });
+            } else {
+                console.log("Bouton d'exportation non trouvé");
+            }
+
 
 // Gestionnaire pour la touche Entrée dans le sélecteur de site
             document.getElementById('site-select').addEventListener('change', function() {
@@ -2775,6 +2890,198 @@
 
                 allTablesVisible = !allTablesVisible;
             });
+        }
+
+        /**
+         * Exporte les données du tableau récapitulatif vers un fichier Excel
+         * @returns {Promise} Une promesse qui est résolue lorsque l'exportation est terminée
+         */
+        function exportToExcel() {
+            console.log("Début de la fonction exportToExcel");
+            return new Promise((resolve, reject) => {
+                // Vérifier qu'il y a des données à exporter
+                if (!window.cumulativeResults || window.cumulativeResults.length === 0) {
+                    console.log("Aucune donnée à exporter");
+                    alert("Aucune donnée à exporter. Veuillez d'abord sélectionner des panneaux.");
+                    reject(new Error("Aucune donnée à exporter"));
+                    return;
+                }
+
+                console.log("Préparation des données pour l'export");
+                // Préparer les données du récapitulatif pour l'export
+                const recapData = prepareRecapDataForExport();
+
+                // Collecter les informations sur les prix calculés
+                const priceData = collectPriceData();
+
+                // Collecter les informations sur les sites et repères sélectionnés
+                const selectionData = collectSelectionData();
+
+                // Créer l'objet de données à envoyer
+                const exportData = {
+                    recap: recapData,
+                    prices: priceData,
+                    selections: selectionData
+                };
+                console.log("Données préparées:", exportData);
+
+                console.log("Envoi des données au serveur");
+                // Envoyer les données au serveur
+                fetch('export_excel.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(exportData)
+                })
+                    .then(response => {
+                        console.log("Réponse du serveur reçue", response);
+                        if (!response.ok) {
+                            console.error("Erreur HTTP:", response.status);
+                            return response.text().then(text => {
+                                throw new Error(`Erreur HTTP ${response.status}: ${text}`);
+                            });
+                        }
+                        return response.blob();
+                    })
+                    .then(blob => {
+                        console.log("Blob reçu", blob);
+                        // Créer un lien de téléchargement pour le fichier
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.style.display = 'none';
+                        a.href = url;
+                        a.download = `Export_Panneaux_${formatDateForFileName(new Date())}.xlsx`;
+                        document.body.appendChild(a);
+                        console.log("Déclenchement du téléchargement");
+                        a.click();
+
+                        // Nettoyer
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
+
+                        resolve();
+                    })
+                    .catch(error => {
+                        console.error("Erreur lors de l'exportation:", error);
+                        reject(error);
+                    });
+            });
+        }
+
+        /**
+         * Formate la date pour le nom de fichier (AAAAMMJJ_HHMMSS)
+         * @param {Date} date - La date à formater
+         * @returns {string} La date formatée
+         */
+        function formatDateForFileName(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
+            const seconds = String(date.getSeconds()).padStart(2, '0');
+
+            return `${year}${month}${day}_${hours}${minutes}${seconds}`;
+        }
+
+        /**
+         * Prépare les données du tableau récapitulatif pour l'export
+         * @returns {Array} Un tableau d'objets contenant les données formatées
+         */
+        function prepareRecapDataForExport() {
+            if (!window.cumulativeResults) {
+                return [];
+            }
+
+            return window.cumulativeResults.map(item => {
+                // Pour les lignes d'options de transport
+                if (item.isTransportOnly) {
+                    return {
+                        site: item.site,
+                        description: "Options",
+                        quantity: "",
+                        transportBarreaux: item.transportBarreaux || "non",
+                        manutentionBarreaux: item.manutention || "non",
+                        manutentionDays: item.manutentionDays || "",
+                        dechargementBarreaux: item.dechargement || "non",
+                        transportPanneaux: item.transportPanneaux || "non",
+                        manutentionPanneaux: item.manutentionPanneaux || "non",
+                        grutagePanneaux: item.grutagePanneaux || "non",
+                        emballage: item.emballage || "non"
+                    };
+                }
+                // Pour les lignes de panneaux
+                else {
+                    return {
+                        site: item.site,
+                        description: item.description || "",
+                        quantity: item.quantity || "",
+                        transportBarreaux: "",
+                        manutentionBarreaux: "",
+                        manutentionDays: "",
+                        dechargementBarreaux: "",
+                        transportPanneaux: "",
+                        manutentionPanneaux: "",
+                        grutagePanneaux: "",
+                        emballage: "",
+                        totalPrice: item.totalPrice || 0
+                    };
+                }
+            });
+        }
+
+        /**
+         * Collecte les informations sur les prix calculés
+         * @returns {Object} Un objet contenant les différents prix calculés
+         */
+        function collectPriceData() {
+            // Calculer les prix
+            const priceDetails = calculerPrixTotal();
+
+            return {
+                prixForfaits: priceDetails.prixForfaits || 0,
+                prixSoudage: priceDetails.prixSoudage || 0,
+                prixTransportBarreaux: priceDetails.prixTransportBarreaux || 0,
+                prixTransportPanneaux: priceDetails.prixTransportPanneaux || 0,
+                prixManutention: priceDetails.prixManutention || 0,
+                prixManutentionPanneaux: priceDetails.prixManutentionPanneaux || 0,
+                prixGrutage: priceDetails.prixGrutage || 0,
+                prixGrutagePanneaux: priceDetails.prixGrutagePanneaux || 0,
+                prixEmballage: priceDetails.prixEmballage || 0,
+                prixMontage: priceDetails.prixMontage || 0,
+                prixTotal: priceDetails.prixTotal || 0
+            };
+        }
+
+        /**
+         * Collecte les informations sur les sites et repères sélectionnés
+         * @returns {Object} Un objet contenant les informations sur les sélections
+         */
+        function collectSelectionData() {
+            // Créer un objet qui regroupe les panneaux par site
+            const panneauxParSite = {};
+
+            if (window.cumulativeResults) {
+                window.cumulativeResults.forEach(item => {
+                    // Ne considérer que les lignes de panneaux (pas les options)
+                    if (!item.isTransportOnly && item.site && item.description) {
+                        if (!panneauxParSite[item.site]) {
+                            panneauxParSite[item.site] = [];
+                        }
+
+                        panneauxParSite[item.site].push({
+                            description: item.description,
+                            quantity: item.quantity || 0,
+                            totalPrice: item.totalPrice || 0
+                        });
+                    }
+                });
+            }
+
+            return {
+                panneauxParSite: panneauxParSite
+            };
         }
 
         // Récupérer les données Excel via AJAX
