@@ -514,6 +514,20 @@
         </div>
     </div>
 
+    <!-- Options d'emballage (initialement masquées) -->
+    <div id="emballage-options" class="search-form" style="display: none; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
+        <!-- Emballage -->
+        <div class="transport-option">
+            <label>Emballage:</label>
+            <div class="radio-group">
+                <input type="radio" id="emballage-oui" name="emballage" value="oui">
+                <label for="emballage-oui">Oui</label>
+                <input type="radio" id="emballage-non" name="emballage" value="non" checked>
+                <label for="emballage-non">Non</label>
+            </div>
+        </div>
+    </div>
+
     <!-- Bouton de validation commun aux deux sections -->
     <div class="search-form" style="margin-top: 20px;">
         <button id="validate-transport-button" class="search-button">Valider les options</button>
@@ -561,6 +575,7 @@
         let transportPanneaux = "non";
         let manutentionPanneaux = "non";
         let grutagePanneaux = "non";
+        let emballage = "non";
 
         // Configuration de l'authentification
         const authModal = document.getElementById('authModal');
@@ -949,6 +964,7 @@
             const resultDiv = document.getElementById('site-result');
             const transportOptionsDiv = document.getElementById('transport-options');
             const transportPanneauxOptionsDiv = document.getElementById('transport-panneaux-options');
+            const emballageOptionsDiv = document.getElementById('emballage-options');
 
             // Sélectionner le site choisi
             const selectedSite = document.getElementById('site-select').value;
@@ -959,6 +975,7 @@
                 document.getElementById('repere-filter').style.display = 'none';
                 transportOptionsDiv.style.display = 'none';
                 transportPanneauxOptionsDiv.style.display = 'none';
+                emballageOptionsDiv.style.display = 'none';
                 return;
             }
 
@@ -970,15 +987,17 @@
                 document.getElementById('repere-filter').style.display = 'none';
                 transportOptionsDiv.style.display = 'none';
                 transportPanneauxOptionsDiv.style.display = 'none';
+                emballageOptionsDiv.style.display = 'none';
                 return;
             }
 
             // Remplir le sélecteur de repères
             populateRepereSelect(selectedSite);
 
-            // Afficher les options de transport (barreaux et panneaux)
+            // Afficher les options de transport (barreaux, panneaux et emballage)
             transportOptionsDiv.style.display = 'flex';
             transportPanneauxOptionsDiv.style.display = 'flex';
+            emballageOptionsDiv.style.display = 'flex';
 
             // Réinitialiser les boutons radio à leur valeur par défaut
             document.getElementById('transport-barreaux-non').checked = true;
@@ -987,6 +1006,7 @@
             document.getElementById('dechargement-non').checked = true;
             document.getElementById('manutention-panneaux-non').checked = true;
             document.getElementById('grutage-panneaux-non').checked = true;
+            document.getElementById('emballage-non').checked = true;
 
             // Réinitialiser les variables globales
             transportBarreaux = "non";
@@ -995,6 +1015,7 @@
             dechargement = "non";
             manutentionPanneaux = "non";
             grutagePanneaux = "non";
+            emballage = "non"; // Nouvelle variable pour l'emballage
 
             // Masquer les options dépendantes
             document.getElementById('manutention-container').style.display = 'none';
@@ -1054,6 +1075,7 @@
             document.getElementById('quantity-input').value = 1;
         }
 
+// Fonction pour valider les options de transport pour un site
         function validateTransportOptions() {
             const selectedSite = document.getElementById('site-select').value;
 
@@ -1085,12 +1107,13 @@
 
             if (existingTransportIndex !== -1) {
                 // Une entrée existe déjà, mettre à jour plutôt qu'ajouter
-                window.cumulativeResults[existingTransportIndex].transportPanneaux = transportPanneaux;
-                window.cumulativeResults[existingTransportIndex].manutentionPanneaux = manutentionPanneaux;
-                window.cumulativeResults[existingTransportIndex].grutagePanneaux = grutagePanneaux;
                 window.cumulativeResults[existingTransportIndex].transportBarreaux = transportBarreaux;
+                window.cumulativeResults[existingTransportIndex].transportPanneaux = transportPanneaux;
                 window.cumulativeResults[existingTransportIndex].manutention = manutention;
                 window.cumulativeResults[existingTransportIndex].dechargement = dechargement;
+                window.cumulativeResults[existingTransportIndex].manutentionPanneaux = manutentionPanneaux;
+                window.cumulativeResults[existingTransportIndex].grutagePanneaux = grutagePanneaux;
+                window.cumulativeResults[existingTransportIndex].emballage = emballage; // Ajout de l'emballage
 
                 // Ajouter le nombre de demi-journées seulement si manutention est "oui"
                 if (manutention === "oui") {
@@ -1107,12 +1130,13 @@
                     id: entryId,
                     site: selectedSite,
                     isTransportOnly: true,
+                    transportBarreaux: transportBarreaux,
                     transportPanneaux: transportPanneaux,
+                    manutention: manutention,
+                    dechargement: dechargement,
                     manutentionPanneaux: manutentionPanneaux,
                     grutagePanneaux: grutagePanneaux,
-                    transportBarreaux: transportBarreaux,
-                    manutention: manutention,
-                    dechargement: dechargement
+                    emballage: emballage // Ajout de l'emballage
                 };
 
                 // Ajouter le nombre de demi-journées seulement si manutention est "oui"
@@ -2251,8 +2275,62 @@
             };
         }
 
+        /**
+         * Calcule le prix de l'emballage pour tous les panneaux
+         * Cette fonction est appelée à chaque mise à jour du tableau récapitulatif
+         *
+         * @return {number} Le prix total de l'emballage
+         */
+        function calculerPrixEmballage() {
+            console.log("=== DÉBUT DU CALCUL DU PRIX D'EMBALLAGE ===");
 
-        // Fonction pour mettre à jour l'affichage du tableau de résultats
+            // Vérifier si l'option emballage est activée
+            let emballageActive = false;
+
+            // Parcourir tous les éléments dans le tableau récapitulatif pour trouver si l'emballage est activé
+            if (window.cumulativeResults) {
+                for (const result of window.cumulativeResults) {
+                    if (result.isTransportOnly && result.emballage === "oui") {
+                        emballageActive = true;
+                        break;
+                    }
+                }
+            }
+
+            // Si l'emballage n'est pas activé, retourner 0
+            if (!emballageActive) {
+                console.log("Prix emballage: 0 € (option non activée)");
+                return 0;
+            }
+
+            // Calculer la quantité totale de panneaux
+            let quantiteTotalePanneaux = 0;
+
+            if (window.cumulativeResults) {
+                for (const result of window.cumulativeResults) {
+                    // Ne compter que les lignes qui ne sont pas des transports et qui ont une quantité
+                    if (!result.isTransportOnly && result.quantity) {
+                        quantiteTotalePanneaux += parseInt(result.quantity, 10);
+                    }
+                }
+            }
+
+            // Prix unitaire de l'emballage
+            const prixUnitaireEmballage = 235.94;
+
+            // Calculer le prix total d'emballage
+            const prixTotalEmballage = quantiteTotalePanneaux * prixUnitaireEmballage;
+
+            console.log(`Nombre total de panneaux: ${quantiteTotalePanneaux}`);
+            console.log(`Prix unitaire de l'emballage: ${prixUnitaireEmballage.toFixed(2)} €`);
+            console.log(`Prix total de l'emballage: ${prixTotalEmballage.toFixed(2)} €`);
+            console.log("=== FIN DU CALCUL DU PRIX D'EMBALLAGE ===");
+
+            return prixTotalEmballage;
+        }
+
+
+// Fonction pour mettre à jour l'affichage du tableau de résultats
         function updateResultsTable() {
             const resultDiv = document.getElementById('site-result');
 
@@ -2306,6 +2384,7 @@
                 <th>Quantité</th>
                 <th>Transport Barreaux</th>
                 <th>Transport Panneaux</th>
+                <th>Emballage</th>
                 <th>Action</th>
             </tr>
     `;
@@ -2334,6 +2413,7 @@
                         <div>Manutention: ${result.manutentionPanneaux || 'non'}</div>
                         <div>Grutage: ${result.grutagePanneaux || 'non'}</div>
                     </td>
+                    <td>${result.emballage || 'non'}</td>
                     <td>
                         <button class="delete-row-btn" data-id="${result.id}"
                                 style="background-color: #f44336; color: white; border: none;
@@ -2350,6 +2430,7 @@
                     <td>${escapeHtml(result.site)}</td>
                     <td>${escapeHtml(result.description || '')}</td>
                     <td>${result.quantity || ''}</td>
+                    <td></td>
                     <td></td>
                     <td></td>
                     <td>
@@ -2555,6 +2636,14 @@
             // Dans setupEventHandlers()
             document.getElementById('validate-transport-button').addEventListener('click', function() {
                 validateTransportOptions();
+            });
+
+            // Gestionnaires d'événements pour les boutons radio d'emballage
+            document.querySelectorAll('input[name="emballage"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    emballage = this.value;
+                    console.log("Emballage:", emballage);
+                });
             });
 
 
