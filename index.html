@@ -2556,11 +2556,16 @@
 
 // Fonction pour configurer les événements des boutons de résultat
         function setupResultButtonEvents() {
+            console.log("Configuration des événements des boutons de résultat");
+
             // Réinitialisation
-            document.getElementById('reset-results').addEventListener('click', function() {
-                window.cumulativeResults = [];
-                updateResultsTable();
-            });
+            const resetButton = document.getElementById('reset-results');
+            if (resetButton) {
+                resetButton.addEventListener('click', function() {
+                    window.cumulativeResults = [];
+                    updateResultsTable();
+                });
+            }
 
             // Boutons de suppression
             document.querySelectorAll('.delete-row-btn').forEach(button => {
@@ -2570,6 +2575,34 @@
                     updateResultsTable();
                 });
             });
+
+            // Bouton d'exportation
+            const exportButton = document.getElementById('export-excel');
+            if (exportButton) {
+                console.log("Bouton d'exportation trouvé, ajout du gestionnaire d'événements");
+
+                // Ajouter le gestionnaire
+                exportButton.addEventListener('click', function() {
+                    console.log("Clic sur le bouton d'exportation");
+                    // Désactiver le bouton pendant l'exportation
+                    this.disabled = true;
+                    this.textContent = "Exportation en cours...";
+
+                    // Appeler la fonction d'exportation
+                    exportToExcel().then(() => {
+                        console.log("Exportation terminée avec succès");
+                        this.disabled = false;
+                        this.textContent = "Exporter vers Excel";
+                    }).catch(error => {
+                        console.error("Erreur lors de l'exportation:", error);
+                        this.disabled = false;
+                        this.textContent = "Exporter vers Excel";
+                        alert("Une erreur est survenue lors de l'exportation: " + error.message);
+                    });
+                });
+            } else {
+                console.log("Bouton d'exportation non trouvé");
+            }
         }
 
         // Fonction pour configurer les gestionnaires d'événements
@@ -2734,32 +2767,6 @@
                     console.log("Emballage:", emballage);
                 });
             });
-
-// Dans la fonction setupResultButtonEvents(), modifiez la partie concernant le bouton d'exportation
-            const exportButton = document.getElementById('export-excel');
-            if (exportButton) {
-                console.log("Bouton d'exportation trouvé");
-                exportButton.addEventListener('click', function() {
-                    console.log("Clic sur le bouton d'exportation");
-                    // Désactiver le bouton pendant l'exportation
-                    this.disabled = true;
-                    this.textContent = "Exportation en cours...";
-
-                    // Appeler la fonction d'exportation
-                    exportToExcel().then(() => {
-                        console.log("Exportation terminée avec succès");
-                        this.disabled = false;
-                        this.textContent = "Exporter vers Excel";
-                    }).catch(error => {
-                        console.error("Erreur lors de l'exportation:", error);
-                        this.disabled = false;
-                        this.textContent = "Exporter vers Excel";
-                        alert("Une erreur est survenue lors de l'exportation: " + error.message);
-                    });
-                });
-            } else {
-                console.log("Bouton d'exportation non trouvé");
-            }
 
 
 // Gestionnaire pour la touche Entrée dans le sélecteur de site
