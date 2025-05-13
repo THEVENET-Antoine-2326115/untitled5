@@ -436,9 +436,9 @@
         <button id="search-site-button" class="search-button">Rechercher</button>
     </div>
 
-    <!-- Options de transport (initialement masquées) -->
+    <!-- Options de transport barreaux (initialement masquées) -->
     <div id="transport-options" class="search-form" style="display: none;">
-
+        <!-- Transport barreaux -->
         <div class="transport-option">
             <label>Transport barreaux:</label>
             <div class="radio-group">
@@ -449,9 +449,8 @@
             </div>
         </div>
 
-
-        <!-- Option Manutention (modifiée pour être cohérente) -->
-        <div id="manutention-container" class="transport-option" style="display: none;">
+        <!-- Manutention (masquée par défaut) -->
+        <div id="manutention-container" class="transport-option" style="display: none; margin-left: 20px;">
             <label>Manutention:</label>
             <div class="radio-group">
                 <input type="radio" id="manutention-oui" name="manutention" value="oui">
@@ -461,14 +460,14 @@
             </div>
         </div>
 
-        <!-- À ajouter après les boutons radio de manutention -->
-        <div id="manutention-days-container" style="display: none; margin-top: 10px; margin-left: 20px;">
+        <!-- Nombre de demi-journées (masqué par défaut) -->
+        <div id="manutention-days-container" style="display: none; margin-top: 10px; margin-left: 40px;">
             <label for="manutention-days">½ journées de manutention:</label>
             <input type="number" id="manutention-days" class="search-input" min="1" value="1" style="width: 60px;">
         </div>
 
-        <!-- Option Grue (modifiée pour être cohérente) -->
-        <div id="dechargement-container" class="transport-option" style="display: none;">
+        <!-- Déchargement/Grue (masqué par défaut) -->
+        <div id="dechargement-container" class="transport-option" style="display: none; margin-left: 20px;">
             <label>Grue à prévoir sur le site:</label>
             <div class="radio-group">
                 <input type="radio" id="dechargement-oui" name="dechargement" value="oui">
@@ -477,7 +476,10 @@
                 <label for="dechargement-non">Non</label>
             </div>
         </div>
+    </div>
 
+    <!-- Options de transport panneaux (initialement masquées) -->
+    <div id="transport-panneaux-options" class="search-form" style="display: none; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
         <!-- Transport panneaux -->
         <div class="transport-option">
             <label>Transport panneaux:</label>
@@ -490,7 +492,7 @@
         </div>
 
         <!-- Manutention panneaux (masquée par défaut) -->
-        <div id="manutention-panneaux-container" class="transport-option" style="display: none;">
+        <div id="manutention-panneaux-container" class="transport-option" style="display: none; margin-left: 20px;">
             <label>Manutention panneaux:</label>
             <div class="radio-group">
                 <input type="radio" id="manutention-panneaux-oui" name="manutention-panneaux" value="oui">
@@ -501,7 +503,7 @@
         </div>
 
         <!-- Grutage panneaux (masqué par défaut) -->
-        <div id="grutage-panneaux-container" class="transport-option" style="display: none;">
+        <div id="grutage-panneaux-container" class="transport-option" style="display: none; margin-left: 20px;">
             <label>Grue à prévoir sur le site:</label>
             <div class="radio-group">
                 <input type="radio" id="grutage-panneaux-oui" name="grutage-panneaux" value="oui">
@@ -510,11 +512,13 @@
                 <label for="grutage-panneaux-non">Non</label>
             </div>
         </div>
+    </div>
 
-
-
+    <!-- Bouton de validation commun aux deux sections -->
+    <div class="search-form" style="margin-top: 20px;">
         <button id="validate-transport-button" class="search-button">Valider les options</button>
     </div>
+
 
     <!-- Filtre de repère (initialement masqué) -->
     <div id="repere-filter" class="search-form" style="display: none;">
@@ -940,23 +944,21 @@
             repereFilterDiv.style.display = 'flex';
         }
 
-        // Fonction de recherche par site
+// Fonction de recherche par site
         function searchBySite() {
             const resultDiv = document.getElementById('site-result');
             const transportOptionsDiv = document.getElementById('transport-options');
+            const transportPanneauxOptionsDiv = document.getElementById('transport-panneaux-options');
 
-            // Retirons cette ligne qui masque le tableau résultat
-            // resultDiv.style.display = 'none';
-
+            // Sélectionner le site choisi
             const selectedSite = document.getElementById('site-select').value;
 
             // Vérifier qu'un site est sélectionné
             if (!selectedSite) {
-                // resultDiv.innerHTML = `<div class="no-result">Veuillez sélectionner un site</div>`;
-                // Éviter de modifier le contenu du tableau résultat si déjà présent
                 // Masquer le filtre de repère et les options de transport
                 document.getElementById('repere-filter').style.display = 'none';
                 transportOptionsDiv.style.display = 'none';
+                transportPanneauxOptionsDiv.style.display = 'none';
                 return;
             }
 
@@ -964,19 +966,42 @@
             const items = allItemsBySite[selectedSite] || [];
 
             if (items.length === 0) {
-                // resultDiv.innerHTML = `<div class="no-result">Aucun item trouvé pour le site "${escapeHtml(selectedSite)}"</div>`;
-                // Éviter de modifier le contenu du tableau résultat si déjà présent
                 // Masquer le filtre de repère et les options de transport
                 document.getElementById('repere-filter').style.display = 'none';
                 transportOptionsDiv.style.display = 'none';
+                transportPanneauxOptionsDiv.style.display = 'none';
                 return;
             }
 
             // Remplir le sélecteur de repères
             populateRepereSelect(selectedSite);
 
-            // Afficher les options de transport
+            // Afficher les options de transport (barreaux et panneaux)
             transportOptionsDiv.style.display = 'flex';
+            transportPanneauxOptionsDiv.style.display = 'flex';
+
+            // Réinitialiser les boutons radio à leur valeur par défaut
+            document.getElementById('transport-barreaux-non').checked = true;
+            document.getElementById('transport-panneaux-non').checked = true;
+            document.getElementById('manutention-non').checked = true;
+            document.getElementById('dechargement-non').checked = true;
+            document.getElementById('manutention-panneaux-non').checked = true;
+            document.getElementById('grutage-panneaux-non').checked = true;
+
+            // Réinitialiser les variables globales
+            transportBarreaux = "non";
+            transportPanneaux = "non";
+            manutention = "non";
+            dechargement = "non";
+            manutentionPanneaux = "non";
+            grutagePanneaux = "non";
+
+            // Masquer les options dépendantes
+            document.getElementById('manutention-container').style.display = 'none';
+            document.getElementById('manutention-days-container').style.display = 'none';
+            document.getElementById('dechargement-container').style.display = 'none';
+            document.getElementById('manutention-panneaux-container').style.display = 'none';
+            document.getElementById('grutage-panneaux-container').style.display = 'none';
         }
 
 // Fonction de filtrage par repère
@@ -1775,12 +1800,28 @@
                 console.error("Erreur lors du calcul du prix du transport des barreaux:", error);
             }
 
+            let prixTransportPanneaux = 0;
+            try {
+                const resultTransportPanneaux = calculerPrixTransportPanneaux();
+                prixTransportPanneaux = resultTransportPanneaux.total || 0;
+            } catch (error) {
+                console.error("Erreur lors du calcul du prix du transport des panneaux:", error);
+            }
+
             let prixManutention = 0;
             try {
                 const resultManutention = calculerPrixManutention();
                 prixManutention = resultManutention.total || 0;
             } catch (error) {
-                console.error("Erreur lors du calcul du prix de la manutention:", error);
+                console.error("Erreur lors du calcul du prix de la manutention des barreaux:", error);
+            }
+
+            let prixManutentionPanneaux = 0;
+            try {
+                const resultManutentionPanneaux = calculerPrixManutentionPanneaux();
+                prixManutentionPanneaux = resultManutentionPanneaux.total || 0;
+            } catch (error) {
+                console.error("Erreur lors du calcul du prix de la manutention des panneaux:", error);
             }
 
             let prixGrutage = 0;
@@ -1788,18 +1829,32 @@
                 const resultGrutage = calculerPrixGrutage();
                 prixGrutage = resultGrutage.total || 0;
             } catch (error) {
-                console.error("Erreur lors du calcul du prix du grutage:", error);
+                console.error("Erreur lors du calcul du prix du grutage des barreaux:", error);
+            }
+
+            let prixGrutagePanneaux = 0;
+            try {
+                const resultGrutagePanneaux = calculerPrixGrutagePanneaux();
+                prixGrutagePanneaux = resultGrutagePanneaux.total || 0;
+            } catch (error) {
+                console.error("Erreur lors du calcul du prix du grutage des panneaux:", error);
             }
 
             // Calculer le prix total
-            const prixTotal = prixForfaits + prixSoudage + prixTransportBarreaux + prixManutention + prixGrutage;
+            const prixTotal = prixForfaits + prixSoudage +
+                prixTransportBarreaux + prixTransportPanneaux +
+                prixManutention + prixManutentionPanneaux +
+                prixGrutage + prixGrutagePanneaux;
 
             console.log("Détail des prix:");
             console.log(`- Forfaits (logistique et suivi): ${prixForfaits.toFixed(2)} €`);
             console.log(`- Soudage des barreaux: ${prixSoudage.toFixed(2)} €`);
             console.log(`- Transport des barreaux: ${prixTransportBarreaux.toFixed(2)} €`);
-            console.log(`- Manutention: ${prixManutention.toFixed(2)} €`);
-            console.log(`- Grutage: ${prixGrutage.toFixed(2)} €`);
+            console.log(`- Transport des panneaux: ${prixTransportPanneaux.toFixed(2)} €`);
+            console.log(`- Manutention des barreaux: ${prixManutention.toFixed(2)} €`);
+            console.log(`- Manutention des panneaux: ${prixManutentionPanneaux.toFixed(2)} €`);
+            console.log(`- Grutage des barreaux: ${prixGrutage.toFixed(2)} €`);
+            console.log(`- Grutage des panneaux: ${prixGrutagePanneaux.toFixed(2)} €`);
             console.log(`PRIX TOTAL: ${prixTotal.toFixed(2)} €`);
             console.log("=== FIN DU CALCUL DU PRIX TOTAL ===");
 
@@ -1807,13 +1862,397 @@
                 prixForfaits: prixForfaits,
                 prixSoudage: prixSoudage,
                 prixTransportBarreaux: prixTransportBarreaux,
+                prixTransportPanneaux: prixTransportPanneaux,
                 prixManutention: prixManutention,
+                prixManutentionPanneaux: prixManutentionPanneaux,
                 prixGrutage: prixGrutage,
+                prixGrutagePanneaux: prixGrutagePanneaux,
                 prixTotal: prixTotal
             };
         }
 
+        /**
+         * Calcule le prix du transport des panneaux pour chaque site
+         * Cette fonction est appelée à chaque mise à jour du tableau récapitulatif
+         *
+         * @return {Object} Objet contenant les prix de transport des panneaux par site et le prix total
+         */
+        function calculerPrixTransportPanneaux() {
+            console.log("=== DÉBUT DU CALCUL DU PRIX DE TRANSPORT DES PANNEAUX ===");
 
+            // Vérifier si nous avons des résultats dans le tableau récapitulatif
+            if (!window.cumulativeResults || window.cumulativeResults.length === 0) {
+                console.log("Prix transport panneaux: 0 € (aucun panneau sélectionné)");
+                return { total: 0, detailParSite: {} };
+            }
+
+            console.log("Nombre d'éléments dans le tableau récapitulatif:", window.cumulativeResults.length);
+
+            // Objet pour stocker les informations par site
+            const sitesInfo = {};
+            // Objet pour suivre les sites qui ont l'option de transport des panneaux activée
+            const sitesAvecTransportPanneaux = {};
+
+            // Vérifier d'abord quels sites ont l'option "transport panneaux" sur "oui"
+            console.log("Recherche des sites avec option transport panneaux...");
+            window.cumulativeResults.forEach((result) => {
+                if (!result.site) {
+                    return;
+                }
+
+                // Vérifier si l'élément a la propriété transportPanneaux
+                if (result.transportPanneaux) {
+                    console.log(`Trouvé option transport panneaux pour le site ${result.site}: ${result.transportPanneaux}`);
+
+                    // Vérifier si l'option est sur "oui"
+                    const estTransportActive = result.transportPanneaux.toLowerCase() === "oui";
+                    console.log(`Option transport panneaux active: ${estTransportActive}`);
+
+                    // Marquer ce site comme ayant l'option de transport activée
+                    if (estTransportActive) {
+                        sitesAvecTransportPanneaux[result.site] = true;
+                    }
+                }
+            });
+
+            console.log("Sites avec transport panneaux activé:", sitesAvecTransportPanneaux);
+
+            // Pour chaque panneau, compter la quantité par site
+            console.log("Calcul des quantités par site...");
+            window.cumulativeResults.forEach((result) => {
+                if (!result.site) {
+                    return;
+                }
+
+                // Ignorer l'élément s'il a isTransportOnly = true (c'est une option, pas un panneau)
+                if (result.isTransportOnly) {
+                    return;
+                }
+
+                // Ignorer les sites qui n'ont pas l'option transport panneaux activée
+                if (!sitesAvecTransportPanneaux[result.site]) {
+                    return;
+                }
+
+                // Vérifier si c'est un panneau (il doit avoir une description)
+                if (!result.description) {
+                    return;
+                }
+
+                // Ignorer les entrées qui ne sont pas des panneaux
+                if (!result.description.toLowerCase().includes("panneau")) {
+                    return;
+                }
+
+                // Initialiser les infos du site si nécessaire
+                if (!sitesInfo[result.site]) {
+                    sitesInfo[result.site] = {
+                        quantiteTotale: 0,
+                        prixUnitaire: 0
+                    };
+                }
+
+                // Déterminer le prix unitaire selon le site
+                sitesInfo[result.site].prixUnitaire = getPrixUnitaireTransport(result.site);
+
+                // Obtenir la quantité
+                const quantite = parseInt(result.quantity) || 0;
+                console.log(`Site ${result.site}: Panneau "${result.description}" - Quantité: ${quantite}`);
+
+                // Ajouter à la quantité totale du site
+                sitesInfo[result.site].quantiteTotale += quantite;
+            });
+
+            console.log("Résumé des informations par site après calcul des quantités:", sitesInfo);
+
+            // Calculer le prix de transport pour chaque site et le prix total
+            let prixTotalTransport = 0;
+            const detailParSite = {};
+
+            console.log("Calcul des prix de transport par site...");
+            for (const site in sitesInfo) {
+                const info = sitesInfo[site];
+                console.log(`Calcul pour le site ${site}:`);
+
+                // Calculer le nombre de camions nécessaires (arrondi à l'entier supérieur)
+                const nombreCamions = Math.ceil(info.quantiteTotale / 5);
+                console.log(`Quantité totale: ${info.quantiteTotale} panneaux`);
+                console.log(`Nombre de camions nécessaires (quantité/5): ${nombreCamions}`);
+
+                // Calculer le prix de transport pour ce site
+                const prixTransportSite = nombreCamions * info.prixUnitaire;
+                console.log(`Prix unitaire: ${info.prixUnitaire.toFixed(2)} €`);
+                console.log(`Prix transport pour ce site: ${prixTransportSite.toFixed(2)} €`);
+
+                // Ajouter au prix total
+                prixTotalTransport += prixTransportSite;
+
+                // Stocker les détails pour ce site
+                detailParSite[site] = {
+                    quantiteTotale: info.quantiteTotale,
+                    nombreCamions: nombreCamions,
+                    prixUnitaire: info.prixUnitaire,
+                    prixTransport: prixTransportSite
+                };
+            }
+
+            console.log(`Prix total du transport des panneaux: ${prixTotalTransport.toFixed(2)} €`);
+            console.log("=== FIN DU CALCUL DU PRIX DE TRANSPORT DES PANNEAUX ===");
+
+            return {
+                total: prixTotalTransport,
+                detailParSite: detailParSite
+            };
+        }
+
+        /**
+         * Calcule le prix de la manutention des panneaux pour chaque site
+         * Cette fonction est appelée à chaque mise à jour du tableau récapitulatif
+         *
+         * @return {Object} Objet contenant les prix de manutention des panneaux par site et le prix total
+         */
+        function calculerPrixManutentionPanneaux() {
+            console.log("=== DÉBUT DU CALCUL DU PRIX DE MANUTENTION DES PANNEAUX ===");
+
+            // Vérifier si nous avons des résultats dans le tableau récapitulatif
+            if (!window.cumulativeResults || window.cumulativeResults.length === 0) {
+                console.log("Prix manutention panneaux: 0 € (aucun site avec manutention panneaux activée)");
+                return { total: 0, detailParSite: {} };
+            }
+
+            // Objet pour stocker les informations par site
+            const sitesInfo = {};
+            // Objet pour suivre les sites qui ont l'option de manutention des panneaux activée
+            const sitesAvecManutentionPanneaux = {};
+
+            // Vérifier d'abord quels sites ont l'option "manutention panneaux" sur "oui"
+            console.log("Recherche des sites avec option manutention panneaux...");
+            window.cumulativeResults.forEach((result) => {
+                if (!result.site) {
+                    return;
+                }
+
+                // Vérifier si l'élément a les propriétés nécessaires
+                if (result.isTransportOnly && result.transportPanneaux && result.manutentionPanneaux) {
+                    console.log(`Trouvé options pour le site ${result.site}: transport panneaux = ${result.transportPanneaux}, manutention panneaux = ${result.manutentionPanneaux}`);
+
+                    // Ne traiter que les sites avec transport panneaux et manutention panneaux sur "oui"
+                    if (result.transportPanneaux.toLowerCase() === "oui" && result.manutentionPanneaux.toLowerCase() === "oui") {
+                        console.log(`Option manutention panneaux active pour le site ${result.site}`);
+                        sitesAvecManutentionPanneaux[result.site] = true;
+                    }
+                }
+            });
+
+            console.log("Sites avec manutention panneaux activée:", sitesAvecManutentionPanneaux);
+
+            // Si aucun site n'a l'option manutention panneaux activée, retourner 0
+            if (Object.keys(sitesAvecManutentionPanneaux).length === 0) {
+                console.log("Aucun site avec manutention panneaux activée");
+                return { total: 0, detailParSite: {} };
+            }
+
+            // Calculer la quantité de panneaux par site pour déterminer le nombre de camions
+            console.log("Calcul des quantités par site...");
+            window.cumulativeResults.forEach((result) => {
+                if (!result.site || result.isTransportOnly) {
+                    return;
+                }
+
+                // Ignorer les sites qui n'ont pas l'option manutention panneaux activée
+                if (!sitesAvecManutentionPanneaux[result.site]) {
+                    return;
+                }
+
+                // Vérifier si c'est un panneau (il doit avoir une description)
+                if (!result.description || !result.description.toLowerCase().includes("panneau")) {
+                    return;
+                }
+
+                // Initialiser les infos du site si nécessaire
+                if (!sitesInfo[result.site]) {
+                    sitesInfo[result.site] = {
+                        quantiteTotale: 0,
+                        prixUnitaire: getPrixUnitaireManutention(result.site)
+                    };
+                }
+
+                // Obtenir la quantité
+                const quantite = parseInt(result.quantity) || 0;
+                console.log(`Site ${result.site}: Panneau "${result.description}" - Quantité: ${quantite}`);
+
+                // Ajouter à la quantité totale du site
+                sitesInfo[result.site].quantiteTotale += quantite;
+            });
+
+            console.log("Résumé des informations par site après calcul des quantités:", sitesInfo);
+
+            // Calculer le prix de manutention pour chaque site et le prix total
+            let prixTotalManutention = 0;
+            const detailParSite = {};
+
+            console.log("Calcul des prix de manutention par site...");
+            for (const site in sitesInfo) {
+                const info = sitesInfo[site];
+                console.log(`Calcul pour le site ${site}:`);
+
+                // Calculer le nombre de camions nécessaires (arrondi à l'entier supérieur)
+                const nombreCamions = Math.ceil(info.quantiteTotale / 5);
+                console.log(`Quantité totale: ${info.quantiteTotale} panneaux`);
+                console.log(`Nombre de camions (demi-journées): ${nombreCamions}`);
+
+                // Calculer le prix de manutention pour ce site
+                const prixManutentionSite = nombreCamions * info.prixUnitaire;
+                console.log(`Prix unitaire manutention: ${info.prixUnitaire.toFixed(2)} €`);
+                console.log(`Prix manutention pour ce site: ${prixManutentionSite.toFixed(2)} €`);
+
+                // Ajouter au prix total
+                prixTotalManutention += prixManutentionSite;
+
+                // Stocker les détails pour ce site
+                detailParSite[site] = {
+                    quantiteTotale: info.quantiteTotale,
+                    nombreCamions: nombreCamions,
+                    prixUnitaire: info.prixUnitaire,
+                    prixManutention: prixManutentionSite
+                };
+            }
+
+            console.log(`Prix total de la manutention des panneaux: ${prixTotalManutention.toFixed(2)} €`);
+            console.log("=== FIN DU CALCUL DU PRIX DE MANUTENTION DES PANNEAUX ===");
+
+            return {
+                total: prixTotalManutention,
+                detailParSite: detailParSite
+            };
+        }
+
+        /**
+         * Calcule le prix du grutage des panneaux
+         * Cette fonction est appelée à chaque mise à jour du tableau récapitulatif
+         *
+         * @return {Object} Objet contenant les prix de grutage des panneaux par site et le prix total
+         */
+        function calculerPrixGrutagePanneaux() {
+            console.log("=== DÉBUT DU CALCUL DU PRIX DE GRUTAGE DES PANNEAUX ===");
+
+            // Vérifier si nous avons des résultats dans le tableau récapitulatif
+            if (!window.cumulativeResults || window.cumulativeResults.length === 0) {
+                console.log("Prix grutage panneaux: 0 € (aucun site avec grutage panneaux activé)");
+                return { total: 0, detailParSite: {} };
+            }
+
+            // Objet pour stocker les informations par site
+            const sitesInfo = {};
+            // Objet pour suivre les sites qui ont l'option de grutage des panneaux activée
+            const sitesAvecGrutagePanneaux = {};
+
+            // Vérifier d'abord quels sites ont l'option "grutage panneaux" sur "oui"
+            console.log("Recherche des sites avec option grutage panneaux...");
+            window.cumulativeResults.forEach((result) => {
+                if (!result.site) {
+                    return;
+                }
+
+                // Vérifier si l'élément a les propriétés nécessaires
+                if (result.isTransportOnly && result.transportPanneaux && result.manutentionPanneaux && result.grutagePanneaux) {
+                    console.log(`Trouvé options pour le site ${result.site}: transport panneaux = ${result.transportPanneaux}, manutention panneaux = ${result.manutentionPanneaux}, grutage panneaux = ${result.grutagePanneaux}`);
+
+                    // Ne traiter que les sites avec transport panneaux, manutention panneaux et grutage panneaux sur "oui"
+                    if (result.transportPanneaux.toLowerCase() === "oui" &&
+                        result.manutentionPanneaux.toLowerCase() === "oui" &&
+                        result.grutagePanneaux.toLowerCase() === "oui") {
+
+                        console.log(`Option grutage panneaux active pour le site ${result.site}`);
+                        sitesAvecGrutagePanneaux[result.site] = true;
+                    }
+                }
+            });
+
+            console.log("Sites avec grutage panneaux activé:", sitesAvecGrutagePanneaux);
+
+            // Si aucun site n'a l'option grutage panneaux activée, retourner 0
+            if (Object.keys(sitesAvecGrutagePanneaux).length === 0) {
+                console.log("Aucun site avec grutage panneaux activé");
+                return { total: 0, detailParSite: {} };
+            }
+
+            // Calculer la quantité de panneaux par site pour déterminer le nombre de camions (demi-journées)
+            console.log("Calcul des quantités par site...");
+            window.cumulativeResults.forEach((result) => {
+                if (!result.site || result.isTransportOnly) {
+                    return;
+                }
+
+                // Ignorer les sites qui n'ont pas l'option grutage panneaux activée
+                if (!sitesAvecGrutagePanneaux[result.site]) {
+                    return;
+                }
+
+                // Vérifier si c'est un panneau (il doit avoir une description)
+                if (!result.description || !result.description.toLowerCase().includes("panneau")) {
+                    return;
+                }
+
+                // Initialiser les infos du site si nécessaire
+                if (!sitesInfo[result.site]) {
+                    sitesInfo[result.site] = {
+                        quantiteTotale: 0,
+                        prixUnitaireGrutage: 882 // Prix fixe pour le grutage: 882 €
+                    };
+                }
+
+                // Obtenir la quantité
+                const quantite = parseInt(result.quantity) || 0;
+
+                // Ajouter à la quantité totale du site
+                sitesInfo[result.site].quantiteTotale += quantite;
+            });
+
+            console.log("Résumé des informations par site après calcul des quantités:", sitesInfo);
+
+            // Calculer le prix de grutage pour chaque site et le prix total
+            let prixTotalGrutage = 0;
+            const detailParSite = {};
+
+            console.log("Calcul des prix de grutage par site...");
+            for (const site in sitesInfo) {
+                const info = sitesInfo[site];
+                console.log(`Calcul pour le site ${site}:`);
+
+                // Calculer le nombre de camions nécessaires (arrondi à l'entier supérieur)
+                const nombreCamions = Math.ceil(info.quantiteTotale / 5);
+                console.log(`Quantité totale: ${info.quantiteTotale} panneaux`);
+                console.log(`Nombre de camions (demi-journées): ${nombreCamions}`);
+
+                // Calculer le prix de grutage pour ce site
+                const prixGrutageSite = nombreCamions * info.prixUnitaireGrutage;
+                console.log(`Prix unitaire grutage: ${info.prixUnitaireGrutage.toFixed(2)} €`);
+                console.log(`Prix grutage pour ce site: ${prixGrutageSite.toFixed(2)} €`);
+
+                // Ajouter au prix total
+                prixTotalGrutage += prixGrutageSite;
+
+                // Stocker les détails pour ce site
+                detailParSite[site] = {
+                    quantiteTotale: info.quantiteTotale,
+                    nombreCamions: nombreCamions,
+                    prixUnitaire: info.prixUnitaireGrutage,
+                    prixGrutage: prixGrutageSite
+                };
+            }
+
+            console.log(`Prix total du grutage des panneaux: ${prixTotalGrutage.toFixed(2)} €`);
+            console.log("=== FIN DU CALCUL DU PRIX DE GRUTAGE DES PANNEAUX ===");
+
+            return {
+                total: prixTotalGrutage,
+                detailParSite: detailParSite
+            };
+        }
+
+
+        // Fonction pour mettre à jour l'affichage du tableau de résultats
         function updateResultsTable() {
             const resultDiv = document.getElementById('site-result');
 
@@ -1865,9 +2304,8 @@
                 <th>Site</th>
                 <th>Repère de panneaux</th>
                 <th>Quantité</th>
-                <th>Option barreaux</th>
-                <th>Option panneaux</th>
-                <th>Grue</th>
+                <th>Transport Barreaux</th>
+                <th>Transport Panneaux</th>
                 <th>Action</th>
             </tr>
     `;
@@ -1883,28 +2321,28 @@
                     }
 
                     finalResultsHtml += `
-        <tr id="row-${result.id}" style="background-color: #f0f8ff;">
-            <td>${escapeHtml(result.site)}</td>
-            <td colspan="2" style="text-align: center; font-style: italic;">Options</td>
-            <td>
-                <div>transport: ${result.transportBarreaux}</div>
-                <div>Manutention: ${manutentionDisplay}</div>
-                <div>Grutage: ${result.dechargement || 'non'}</div>
-            </td>
-            <td>
-                <div>transport: ${result.transportPanneaux}</div>
-                <div>Manutention: ${result.manutentionPanneaux || 'non'}</div>
-                <div>Grutage: ${result.grutagePanneaux || 'non'}</div>
-            </td>
-            <td>
-                <button class="delete-row-btn" data-id="${result.id}"
-                        style="background-color: #f44336; color: white; border: none;
-                                padding: 5px 10px; border-radius: 3px; cursor: pointer;">
-                    Supprimer
-                </button>
-            </td>
-        </tr>
-    `;
+                <tr id="row-${result.id}" style="background-color: #f0f8ff;">
+                    <td>${escapeHtml(result.site)}</td>
+                    <td colspan="2" style="text-align: center; font-style: italic;">Options</td>
+                    <td>
+                        <div>Barreaux: ${result.transportBarreaux}</div>
+                        <div>Manutention: ${manutentionDisplay}</div>
+                        <div>Grutage: ${result.dechargement || 'non'}</div>
+                    </td>
+                    <td>
+                        <div>Panneaux: ${result.transportPanneaux}</div>
+                        <div>Manutention: ${result.manutentionPanneaux || 'non'}</div>
+                        <div>Grutage: ${result.grutagePanneaux || 'non'}</div>
+                    </td>
+                    <td>
+                        <button class="delete-row-btn" data-id="${result.id}"
+                                style="background-color: #f44336; color: white; border: none;
+                                       padding: 5px 10px; border-radius: 3px; cursor: pointer;">
+                            Supprimer
+                        </button>
+                    </td>
+                </tr>
+            `;
                 } else {
                     // Pour les entrées normales (produits)
                     finalResultsHtml += `
@@ -1912,9 +2350,8 @@
                     <td>${escapeHtml(result.site)}</td>
                     <td>${escapeHtml(result.description || '')}</td>
                     <td>${result.quantity || ''}</td>
-                    <td>${result.transportBarreaux || ''}</td>
-                    <td>${result.manutention || ''}</td>
-                    <td>${result.dechargement || ''}</td>
+                    <td></td>
+                    <td></td>
                     <td>
                         <button class="delete-row-btn" data-id="${result.id}"
                                 style="background-color: #f44336; color: white; border: none;
