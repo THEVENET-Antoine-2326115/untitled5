@@ -382,7 +382,6 @@
             min-height: 300px;
             min-width: 150px;
             object-fit: contain;
-            unc sybau js nd t u ng m wrkg
         }
 
         /* Styles spécifiques pour le conteneur des logos */
@@ -1947,7 +1946,7 @@
                     const manutentionContainer = document.getElementById('manutention-container');
 
                     if (transportBarreaux === "oui") {
-                        manutentionContainer.style.display = "block";  // Afficher l'option de manutention
+                        manutentionContainer.style.display = "flex";  // Afficher l'option de manutention
                     } else {
                         manutentionContainer.style.display = "none";   // Masquer l'option de manutention
 
@@ -1978,8 +1977,8 @@
                     const dechargementContainer = document.getElementById('dechargement-container');
 
                     if (manutention === "oui") {
-                        manutentionDaysContainer.style.display = "block";
-                        dechargementContainer.style.display = "block";  // Afficher l'option de grue
+                        manutentionDaysContainer.style.display = "flex";
+                        dechargementContainer.style.display = "flex";  // Afficher l'option de grue
                     } else {
                         manutentionDaysContainer.style.display = "none";
                         dechargementContainer.style.display = "none";   // Masquer l'option de grue
