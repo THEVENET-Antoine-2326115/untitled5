@@ -478,6 +478,39 @@
             </div>
         </div>
 
+        <!-- Transport panneaux -->
+        <div class="transport-option">
+            <label>Transport panneaux:</label>
+            <div class="radio-group">
+                <input type="radio" id="transport-panneaux-oui" name="transport-panneaux" value="oui">
+                <label for="transport-panneaux-oui">Oui</label>
+                <input type="radio" id="transport-panneaux-non" name="transport-panneaux" value="non" checked>
+                <label for="transport-panneaux-non">Non</label>
+            </div>
+        </div>
+
+        <!-- Manutention panneaux (masquée par défaut) -->
+        <div id="manutention-panneaux-container" class="transport-option" style="display: none;">
+            <label>Manutention panneaux:</label>
+            <div class="radio-group">
+                <input type="radio" id="manutention-panneaux-oui" name="manutention-panneaux" value="oui">
+                <label for="manutention-panneaux-oui">Oui</label>
+                <input type="radio" id="manutention-panneaux-non" name="manutention-panneaux" value="non" checked>
+                <label for="manutention-panneaux-non">Non</label>
+            </div>
+        </div>
+
+        <!-- Grutage panneaux (masqué par défaut) -->
+        <div id="grutage-panneaux-container" class="transport-option" style="display: none;">
+            <label>Grue à prévoir sur le site:</label>
+            <div class="radio-group">
+                <input type="radio" id="grutage-panneaux-oui" name="grutage-panneaux" value="oui">
+                <label for="grutage-panneaux-oui">Oui</label>
+                <input type="radio" id="grutage-panneaux-non" name="grutage-panneaux" value="non" checked>
+                <label for="grutage-panneaux-non">Non</label>
+            </div>
+        </div>
+
 
 
         <button id="validate-transport-button" class="search-button">Valider les options</button>
@@ -518,10 +551,12 @@
         let filesDataGlobal = {};
         let allTablesVisible = false;
         // Variables pour le transport (ajoutez ces lignes)
-        let transportPanneaux = "non";
         let transportBarreaux = "non";
         let dechargement = "non";
         let manutention = "non";
+        let transportPanneaux = "non";
+        let manutentionPanneaux = "non";
+        let grutagePanneaux = "non";
 
         // Configuration de l'authentification
         const authModal = document.getElementById('authModal');
@@ -994,7 +1029,6 @@
             document.getElementById('quantity-input').value = 1;
         }
 
-// Fonction pour valider les options de transport pour un site
         function validateTransportOptions() {
             const selectedSite = document.getElementById('site-select').value;
 
@@ -1026,9 +1060,12 @@
 
             if (existingTransportIndex !== -1) {
                 // Une entrée existe déjà, mettre à jour plutôt qu'ajouter
+                window.cumulativeResults[existingTransportIndex].transportPanneaux = transportPanneaux;
+                window.cumulativeResults[existingTransportIndex].manutentionPanneaux = manutentionPanneaux;
+                window.cumulativeResults[existingTransportIndex].grutagePanneaux = grutagePanneaux;
                 window.cumulativeResults[existingTransportIndex].transportBarreaux = transportBarreaux;
-                window.cumulativeResults[existingTransportIndex].dechargement = dechargement;
                 window.cumulativeResults[existingTransportIndex].manutention = manutention;
+                window.cumulativeResults[existingTransportIndex].dechargement = dechargement;
 
                 // Ajouter le nombre de demi-journées seulement si manutention est "oui"
                 if (manutention === "oui") {
@@ -1045,9 +1082,12 @@
                     id: entryId,
                     site: selectedSite,
                     isTransportOnly: true,
+                    transportPanneaux: transportPanneaux,
+                    manutentionPanneaux: manutentionPanneaux,
+                    grutagePanneaux: grutagePanneaux,
                     transportBarreaux: transportBarreaux,
-                    dechargement: dechargement,
-                    manutention: manutention
+                    manutention: manutention,
+                    dechargement: dechargement
                 };
 
                 // Ajouter le nombre de demi-journées seulement si manutention est "oui"
@@ -1774,7 +1814,6 @@
         }
 
 
-// Fonction pour mettre à jour l'affichage du tableau de résultats
         function updateResultsTable() {
             const resultDiv = document.getElementById('site-result');
 
@@ -1826,8 +1865,8 @@
                 <th>Site</th>
                 <th>Repère de panneaux</th>
                 <th>Quantité</th>
-                <th>Transport Barreaux</th>
-                <th>Manutention</th>
+                <th>Option barreaux</th>
+                <th>Option panneaux</th>
                 <th>Grue</th>
                 <th>Action</th>
             </tr>
@@ -1837,28 +1876,35 @@
             for (const result of window.cumulativeResults) {
                 // Pour les entrées qui sont uniquement de transport
                 if (result.isTransportOnly) {
-                    // Préparation de l'affichage de la manutention
+                    // Préparation de l'affichage de la manutention barreaux
                     let manutentionDisplay = result.manutention || 'non';
                     if (result.manutention === 'oui' && result.manutentionDays) {
                         manutentionDisplay = `${result.manutention} (${result.manutentionDays} demi-journée${result.manutentionDays > 1 ? 's' : ''})`;
                     }
 
                     finalResultsHtml += `
-                <tr id="row-${result.id}" style="background-color: #f0f8ff;">
-                    <td>${escapeHtml(result.site)}</td>
-                    <td colspan="2" style="text-align: center; font-style: italic;">Options</td>
-                    <td>${result.transportBarreaux}</td>
-                    <td>${result.dechargement || 'non'}</td>
-                    <td>${manutentionDisplay}</td>
-                    <td>
-                        <button class="delete-row-btn" data-id="${result.id}"
-                                style="background-color: #f44336; color: white; border: none;
-                                       padding: 5px 10px; border-radius: 3px; cursor: pointer;">
-                            Supprimer
-                        </button>
-                    </td>
-                </tr>
-            `;
+        <tr id="row-${result.id}" style="background-color: #f0f8ff;">
+            <td>${escapeHtml(result.site)}</td>
+            <td colspan="2" style="text-align: center; font-style: italic;">Options</td>
+            <td>
+                <div>transport: ${result.transportBarreaux}</div>
+                <div>Manutention: ${manutentionDisplay}</div>
+                <div>Grutage: ${result.dechargement || 'non'}</div>
+            </td>
+            <td>
+                <div>transport: ${result.transportPanneaux}</div>
+                <div>Manutention: ${result.manutentionPanneaux || 'non'}</div>
+                <div>Grutage: ${result.grutagePanneaux || 'non'}</div>
+            </td>
+            <td>
+                <button class="delete-row-btn" data-id="${result.id}"
+                        style="background-color: #f44336; color: white; border: none;
+                                padding: 5px 10px; border-radius: 3px; cursor: pointer;">
+                    Supprimer
+                </button>
+            </td>
+        </tr>
+    `;
                 } else {
                     // Pour les entrées normales (produits)
                     finalResultsHtml += `
@@ -1866,10 +1912,9 @@
                     <td>${escapeHtml(result.site)}</td>
                     <td>${escapeHtml(result.description || '')}</td>
                     <td>${result.quantity || ''}</td>
-                    <td>${result.transportPanneaux || ''}</td>
                     <td>${result.transportBarreaux || ''}</td>
-                    <td>${result.dechargement || ''}</td>
                     <td>${result.manutention || ''}</td>
+                    <td>${result.dechargement || ''}</td>
                     <td>
                         <button class="delete-row-btn" data-id="${result.id}"
                                 style="background-color: #f44336; color: white; border: none;
@@ -1931,7 +1976,6 @@
                 // Réinitialiser les boutons radio à leur valeur par défaut
                 document.getElementById('transport-barreaux-non').checked = true;
                 document.getElementById('dechargement-non').checked = true;
-                transportPanneaux = "non";
                 transportBarreaux = "non";
                 dechargement = "non";
             });
@@ -1942,18 +1986,25 @@
                     transportBarreaux = this.value;
                     console.log("Transport barreaux:", transportBarreaux);
 
-                    // Afficher ou masquer l'option de manutention
+                    // Récupérer tous les conteneurs concernés
                     const manutentionContainer = document.getElementById('manutention-container');
+                    const manutentionDaysContainer = document.getElementById('manutention-days-container');
+                    const dechargementContainer = document.getElementById('dechargement-container');
 
                     if (transportBarreaux === "oui") {
-                        manutentionContainer.style.display = "flex";  // Afficher l'option de manutention
+                        // Si transport barreaux est activé, afficher l'option de manutention
+                        manutentionContainer.style.display = "flex";
                     } else {
-                        manutentionContainer.style.display = "none";   // Masquer l'option de manutention
+                        // Si transport barreaux est désactivé, masquer toutes les options dépendantes
+                        manutentionContainer.style.display = "none";
+                        manutentionDaysContainer.style.display = "none";
+                        dechargementContainer.style.display = "none";
 
-                        // Réinitialiser l'option de manutention à "non"
+                        // Réinitialiser toutes les options à "non"
                         document.getElementById('manutention-non').checked = true;
+                        document.getElementById('dechargement-non').checked = true;
                         manutention = "non";
-
+                        dechargement = "non";
                     }
                 });
             });
@@ -2004,6 +2055,66 @@
                 }
             });
 
+            // Dans la fonction setupEventHandlers()
+
+// Gestionnaires d'événements pour les boutons radio de transport panneaux
+            document.querySelectorAll('input[name="transport-panneaux"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    transportPanneaux = this.value;
+                    console.log("Transport panneaux:", transportPanneaux);
+
+                    // Récupérer les conteneurs concernés
+                    const manutentionPanneauxContainer = document.getElementById('manutention-panneaux-container');
+                    const grutagePanneauxContainer = document.getElementById('grutage-panneaux-container');
+
+                    if (transportPanneaux === "oui") {
+                        // Si transport panneaux est activé, afficher l'option de manutention panneaux
+                        manutentionPanneauxContainer.style.display = "flex";
+                    } else {
+                        // Si transport panneaux est désactivé, masquer toutes les options dépendantes
+                        manutentionPanneauxContainer.style.display = "none";
+                        grutagePanneauxContainer.style.display = "none";
+
+                        // Réinitialiser toutes les options à "non"
+                        document.getElementById('manutention-panneaux-non').checked = true;
+                        document.getElementById('grutage-panneaux-non').checked = true;
+                        manutentionPanneaux = "non";
+                        grutagePanneaux = "non";
+                    }
+                });
+            });
+
+// Gestionnaires d'événements pour les boutons radio de manutention panneaux
+            document.querySelectorAll('input[name="manutention-panneaux"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    manutentionPanneaux = this.value;
+                    console.log("Manutention panneaux:", manutentionPanneaux);
+
+                    // Récupérer le conteneur de grutage panneaux
+                    const grutagePanneauxContainer = document.getElementById('grutage-panneaux-container');
+
+                    if (manutentionPanneaux === "oui") {
+                        // Si manutention panneaux est activée, afficher l'option de grutage panneaux
+                        grutagePanneauxContainer.style.display = "flex";
+                    } else {
+                        // Si manutention panneaux est désactivée, masquer l'option de grutage panneaux
+                        grutagePanneauxContainer.style.display = "none";
+
+                        // Réinitialiser l'option à "non"
+                        document.getElementById('grutage-panneaux-non').checked = true;
+                        grutagePanneaux = "non";
+                    }
+                });
+            });
+
+// Gestionnaires d'événements pour les boutons radio de grutage panneaux
+            document.querySelectorAll('input[name="grutage-panneaux"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    grutagePanneaux = this.value;
+                    console.log("Grutage panneaux:", grutagePanneaux);
+                });
+            });
+
             // Dans setupEventHandlers()
             document.getElementById('validate-transport-button').addEventListener('click', function() {
                 validateTransportOptions();
@@ -2021,9 +2132,19 @@
 
                 document.getElementById('transport-barreaux-non').checked = true;
                 document.getElementById('dechargement-non').checked = true;
-                transportPanneaux = "non";
                 transportBarreaux = "non";
                 dechargement = "non";
+
+                document.getElementById('transport-panneaux-non').checked = true;
+                document.getElementById('manutention-panneaux-non').checked = true;
+                document.getElementById('grutage-panneaux-non').checked = true;
+                transportPanneaux = "non";
+                manutentionPanneaux = "non";
+                grutagePanneaux = "non";
+
+                // Masquer les options dépendantes
+                document.getElementById('manutention-panneaux-container').style.display = "none";
+                document.getElementById('grutage-panneaux-container').style.display = "none";
             });
 
 
