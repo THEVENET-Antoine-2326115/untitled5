@@ -59,9 +59,17 @@ try {
         ->setBackgroundColor('DDDDDD') // Gris clair (hex)
         ->build();
 
-    $priceStyle = (new StyleBuilder())
-        ->setFontBold()
-        ->setFontSize(12)
+    // Style commun pour toutes les lignes
+    $baseRowStyle = (new StyleBuilder())
+        ->build();
+
+    // Styles pour les lignes alternées - uniquement la couleur change
+    $rowStyleEven = (new StyleBuilder())
+        ->setBackgroundColor('FFFFFF') // Blanc (hex)
+        ->build();
+
+    $rowStyleOdd = (new StyleBuilder())
+        ->setBackgroundColor('F0F0F0') // Gris très clair (hex)
         ->build();
 
     // ======= FEUILLE 1 : RÉCAPITULATIF =======
@@ -111,28 +119,237 @@ try {
     $writer->addRow(WriterEntityFactory::createRowFromArray(['']));
     $writer->addRow(WriterEntityFactory::createRowFromArray(['']));
 
-    // Ajouter le récapitulatif des prix
-    $writer->addRow(WriterEntityFactory::createRowFromArray(['RÉCAPITULATIF DES PRIX'], $headerStyle));
+    // ======= RÉCAPITULATIF DES PRIX DÉTAILLÉ =======
+
+    // Ajouter le récapitulatif des prix avec des colonnes détaillées
+    $writer->addRow(WriterEntityFactory::createRowFromArray(['RÉCAPITULATIF DÉTAILLÉ DES PRIX'], $headerStyle));
     $writer->addRow(WriterEntityFactory::createRowFromArray([''])); // Ligne vide
 
-    $priceData = [
-        ['Forfaits (logistique et suivi)', number_format((float)($data['prices']['prixForfaits'] ?? 0), 2, ',', ' ') . ' €'],
-        ['Soudage des barreaux', number_format((float)($data['prices']['prixSoudage'] ?? 0), 2, ',', ' ') . ' €'],
-        ['Transport des barreaux', number_format((float)($data['prices']['prixTransportBarreaux'] ?? 0), 2, ',', ' ') . ' €'],
-        ['Transport des panneaux', number_format((float)($data['prices']['prixTransportPanneaux'] ?? 0), 2, ',', ' ') . ' €'],
-        ['Manutention des barreaux', number_format((float)($data['prices']['prixManutention'] ?? 0), 2, ',', ' ') . ' €'],
-        ['Manutention des panneaux', number_format((float)($data['prices']['prixManutentionPanneaux'] ?? 0), 2, ',', ' ') . ' €'],
-        ['Grutage des barreaux', number_format((float)($data['prices']['prixGrutage'] ?? 0), 2, ',', ' ') . ' €'],
-        ['Grutage des panneaux', number_format((float)($data['prices']['prixGrutagePanneaux'] ?? 0), 2, ',', ' ') . ' €'],
-        ['Emballage', number_format((float)($data['prices']['prixEmballage'] ?? 0), 2, ',', ' ') . ' €'],
-        ['Montage des panneaux', number_format((float)($data['prices']['prixMontage'] ?? 0), 2, ',', ' ') . ' €'],
-        ['PRIX TOTAL', number_format((float)($data['prices']['prixTotal'] ?? 0), 2, ',', ' ') . ' €']
+    // En-têtes du tableau de prix détaillé - Structure avec colonnes distinctes pour quantité, camions et demi-journées
+    $priceHeaders = [
+        'Désignation',
+        'Quantité',
+        'Camions',
+        'Demi-journées',
+        'Prix unitaire (€)',
+        'Formule de calcul',
+        'Montant total (€)'
+    ];
+    $writer->addRow(WriterEntityFactory::createRowFromArray($priceHeaders, $headerStyle));
+
+    // Données détaillées des prix
+    $priceData = [];
+
+    // 1. Forfait logistique
+    if (isset($data['prices']['forfaitLogistique'])) {
+        $prixLogistique = $data['prices']['forfaitLogistique'];
+        $priceData[] = [
+            'Forfait logistique',
+            $data['prices']['totalPanneaux'] ?? '0',
+            '',
+            '',
+            $prixLogistique['prixUnitaire'] ?? '0,00',
+            $data['prices']['totalPanneaux'] . ' × ' . $prixLogistique['prixUnitaire'] . ' €',
+            number_format((float)($prixLogistique['montant'] ?? 0), 2, ',', ' ')
+        ];
+    }
+
+    // 2. Forfait suivi
+    if (isset($data['prices']['forfaitSuivi'])) {
+        $prixSuivi = $data['prices']['forfaitSuivi'];
+        $priceData[] = [
+            'Forfait suivi',
+            $data['prices']['totalPanneaux'] ?? '0',
+            '',
+            '',
+            $prixSuivi['prixUnitaire'] ?? '0,00',
+            $data['prices']['totalPanneaux'] . ' × ' . $prixSuivi['prixUnitaire'] . ' €',
+            number_format((float)($prixSuivi['montant'] ?? 0), 2, ',', ' ')
+        ];
+    }
+
+    // 3. Soudage des barreaux
+    $priceData[] = [
+        'Soudage des barreaux',
+        $data['prices']['nbPanneauxSupStVallier'] ?? '0',
+        '',
+        '',
+        '533,56',
+        $data['prices']['nbPanneauxSupStVallier'] . ' × 533,56 €',
+        number_format((float)($data['prices']['prixSoudage'] ?? 0), 2, ',', ' ')
     ];
 
+    // 4. Transport des barreaux
+    if (isset($data['prices']['transportBarreaux']) && !empty($data['prices']['transportBarreaux']['detailParSite'])) {
+        foreach ($data['prices']['transportBarreaux']['detailParSite'] as $site => $details) {
+            $formule = "Poids total: " . number_format($details['poidsTotal'] ?? 0, 4, ',', ' ') . " t / 19 t = " .
+                $details['nombreCamions'] . " camions × " . number_format($details['prixUnitaire'], 2, ',', ' ') . " €";
+
+            $priceData[] = [
+                'Transport des barreaux - ' . $site,
+                '',
+                $details['nombreCamions'],
+                '',
+                number_format($details['prixUnitaire'] ?? 0, 2, ',', ' '),
+                $formule,
+                number_format((float)($details['prixTransport'] ?? 0), 2, ',', ' ')
+            ];
+        }
+    }
+
+    // 5. Transport des panneaux
+    if (isset($data['prices']['transportPanneaux']) && !empty($data['prices']['transportPanneaux']['detailParSite'])) {
+        foreach ($data['prices']['transportPanneaux']['detailParSite'] as $site => $details) {
+            $formule = "Quantité: " . ($details['quantiteTotale'] ?? 0) . " panneaux / 5 = " .
+                $details['nombreCamions'] . " camions × " . number_format($details['prixUnitaire'], 2, ',', ' ') . " €";
+
+            $priceData[] = [
+                'Transport des panneaux - ' . $site,
+                $details['quantiteTotale'] ?? '0',
+                $details['nombreCamions'],
+                '',
+                number_format($details['prixUnitaire'] ?? 0, 2, ',', ' '),
+                $formule,
+                number_format((float)($details['prixTransport'] ?? 0), 2, ',', ' ')
+            ];
+        }
+    }
+
+    // 6. Manutention des barreaux
+    if (isset($data['prices']['manutention']) && !empty($data['prices']['manutention']['detailParSite'])) {
+        foreach ($data['prices']['manutention']['detailParSite'] as $site => $details) {
+            $formule = $details['nbDemiJournees'] . " demi-journées × " . number_format($details['prixUnitaire'], 2, ',', ' ') . " €";
+
+            $priceData[] = [
+                'Manutention des barreaux - ' . $site,
+                '',
+                '',
+                $details['nbDemiJournees'],
+                number_format($details['prixUnitaire'] ?? 0, 2, ',', ' '),
+                $formule,
+                number_format((float)($details['prixManutention'] ?? 0), 2, ',', ' ')
+            ];
+        }
+    }
+
+    // 7. Manutention des panneaux
+    if (isset($data['prices']['manutentionPanneaux']) && !empty($data['prices']['manutentionPanneaux']['detailParSite'])) {
+        foreach ($data['prices']['manutentionPanneaux']['detailParSite'] as $site => $details) {
+            $formule = "Quantité: " . ($details['quantiteTotale'] ?? 0) . " panneaux / 5 = " .
+                $details['nombreCamions'] . " demi-journées × " . number_format($details['prixUnitaire'], 2, ',', ' ') . " €";
+
+            $priceData[] = [
+                'Manutention des panneaux - ' . $site,
+                $details['quantiteTotale'] ?? '0',
+                '',
+                $details['nombreCamions'],
+                number_format($details['prixUnitaire'] ?? 0, 2, ',', ' '),
+                $formule,
+                number_format((float)($details['prixManutention'] ?? 0), 2, ',', ' ')
+            ];
+        }
+    }
+
+    // 8. Grutage des barreaux
+    if (isset($data['prices']['grutage']) && !empty($data['prices']['grutage']['detailParSite'])) {
+        foreach ($data['prices']['grutage']['detailParSite'] as $site => $details) {
+            $formule = $details['nbDemiJournees'] . " demi-journées × 882,00 €";
+
+            $priceData[] = [
+                'Grutage des barreaux - ' . $site,
+                '',
+                '',
+                $details['nbDemiJournees'],
+                '882,00',
+                $formule,
+                number_format((float)($details['prixGrutage'] ?? 0), 2, ',', ' ')
+            ];
+        }
+    }
+
+    // 9. Grutage des panneaux
+    if (isset($data['prices']['grutagePanneaux']) && !empty($data['prices']['grutagePanneaux']['detailParSite'])) {
+        foreach ($data['prices']['grutagePanneaux']['detailParSite'] as $site => $details) {
+            $formule = $details['nombreCamions'] . " demi-journées × 882,00 €";
+
+            $priceData[] = [
+                'Grutage des panneaux - ' . $site,
+                '',
+                '',
+                $details['nombreCamions'],
+                '882,00',
+                $formule,
+                number_format((float)($details['prixGrutage'] ?? 0), 2, ',', ' ')
+            ];
+        }
+    }
+
+    // 10. Emballage
+    $priceData[] = [
+        'Emballage',
+        $data['prices']['totalPanneaux'] ?? '0',
+        '',
+        '',
+        '235,94',
+        $data['prices']['totalPanneaux'] . ' × 235,94 €',
+        number_format((float)($data['prices']['prixEmballage'] ?? 0), 2, ',', ' ')
+    ];
+
+    // 11. Montage des panneaux
+    if (isset($data['prices']['detailMontage']) && !empty($data['prices']['detailMontage'])) {
+        foreach ($data['prices']['detailMontage'] as $montage) {
+            $priceData[] = [
+                'Montage - ' . ($montage['description'] ?? 'Panneau') . ' - ' . ($montage['site'] ?? ''),
+                $montage['quantity'] ?? '0',
+                '',
+                '',
+                number_format($montage['prixUnitaire'] ?? 0, 2, ',', ' '),
+                $montage['quantity'] . ' × ' . number_format($montage['prixUnitaire'], 2, ',', ' ') . ' €',
+                number_format((float)($montage['sousTotal'] ?? 0), 2, ',', ' ')
+            ];
+        }
+    } else {
+        $priceData[] = [
+            'Montage des panneaux',
+            '',
+            '',
+            '',
+            '',
+            'Somme des sous-totaux de montage',
+            number_format((float)($data['prices']['prixMontage'] ?? 0), 2, ',', ' ')
+        ];
+    }
+
+    // 12. PRIX TOTAL
+    $priceData[] = [
+        'PRIX TOTAL',
+        '',
+        '',
+        '',
+        '',
+        'Somme de tous les montants',
+        number_format((float)($data['prices']['prixTotal'] ?? 0), 2, ',', ' ')
+    ];
+
+    // Ajouter chaque ligne avec couleurs alternées
     foreach ($priceData as $index => $row) {
         // Utiliser le style total pour la dernière ligne (PRIX TOTAL)
-        $style = ($index === count($priceData) - 1) ? $totalRowStyle : null;
-        $writer->addRow(WriterEntityFactory::createRowFromArray($row, $style));
+        if ($index === count($priceData) - 1) {
+            $style = $totalRowStyle;
+        } else {
+            // Utiliser des couleurs alternées pour les autres lignes
+            $style = ($index % 2 === 0) ? $rowStyleEven : $rowStyleOdd;
+        }
+
+        // Uniformiser les lignes en appliquant le texte de la même façon
+        // Convertir chaque valeur en chaîne explicitement
+        $processedRow = [];
+        foreach ($row as $cellValue) {
+            // Assurer que toutes les valeurs sont des chaînes
+            $processedRow[] = (string)$cellValue;
+        }
+
+        $writer->addRow(WriterEntityFactory::createRowFromArray($processedRow, $style));
     }
 
     // ======= FEUILLE 2 : BPU DÉTAILLÉ =======
@@ -151,16 +368,21 @@ try {
         $bpuData = ['Feuille1' => [['Pas de données disponibles']]];
     }
 
-    // Créer un mapping des descriptions aux quantités sélectionnées (en normalisant les descriptions)
-    $quantiteParDescription = [];
+    // Créer un mapping des descriptions aux quantités sélectionnées en fonction du site
+    $quantiteParSiteEtDescription = [];
     foreach ($data['recap'] as $item) {
         if (!empty($item['description']) && isset($item['quantity']) && $item['quantity'] > 0 && !isset($item['isTransportOnly'])) {
-            // Normaliser la description pour la recherche (enlever les espaces supplémentaires, mettre en minuscules)
-            $descNormalisee = normaliserTexte($item['description']);
-            $quantiteParDescription[$descNormalisee] = $item['quantity'];
+            // Utiliser la combinaison site + description comme clé
+            $key = ($item['site'] ?? '') . '|' . $item['description'];
 
-            // Ajout de log pour débogage
-            error_log("Description ajoutée au mapping: '$descNormalisee' => " . $item['quantity']);
+            // Si cette combinaison existe déjà, additionner les quantités
+            if (isset($quantiteParSiteEtDescription[$key])) {
+                $quantiteParSiteEtDescription[$key] += (int)$item['quantity'];
+            } else {
+                $quantiteParSiteEtDescription[$key] = (int)$item['quantity'];
+            }
+
+            error_log("Combinaison site+description ajoutée: '$key' => " . $quantiteParSiteEtDescription[$key]);
         }
     }
 
@@ -184,62 +406,76 @@ try {
             $headerStrings[] = (string)$header;
         }
 
-        // Ajouter une colonne pour la quantité sélectionnée
-        $headerStrings[] = 'Quantité Sélectionnée';
+        // Ajouter une colonne pour la quantité sélectionnée en position P (index 15)
+        // Assurer qu'il y a suffisamment de colonnes jusqu'à P
+        while (count($headerStrings) < 15) {
+            $headerStrings[] = ''; // Ajouter des colonnes vides si nécessaire
+        }
+        $headerStrings[15] = 'Quantité Sélectionnée'; // Placer l'en-tête en colonne P
 
         // Écrire la ligne d'en-tête
         $writer->addRow(WriterEntityFactory::createRowFromArray($headerStrings, $headerStyle));
 
-        // Trouver l'index de la colonne Description
-        $descriptionIndex = -1;
-        foreach ($headerStrings as $i => $header) {
-            if (stripos($header, 'designation') !== false ||
-                stripos($header, 'description') !== false ||
-                stripos($header, 'produit') !== false) {
-                $descriptionIndex = $i;
-                break;
-            }
-        }
+        // Colonne B (index 1) est la colonne de description
+        $descriptionIndex = 1;
 
-        // Écrire les données
+        // Variable pour suivre le site courant
+        $currentSite = '';
+
+        // Écrire les données avec couleurs alternées
         for ($i = 1; $i < count($rows); $i++) {
             $row = $rows[$i];
             $rowData = [];
+
+            // Mettre à jour le site courant si la colonne A n'est pas vide
+            if (!empty($row[0])) {
+                $potentialSite = trim((string)$row[0]);
+                // Vérifier si c'est un site (un mot sans chiffres ni espaces)
+                if (preg_match('/^[A-Za-z\-]+$/', $potentialSite)) {
+                    $currentSite = $potentialSite;
+                    error_log("Site courant mis à jour: $currentSite");
+                }
+            }
 
             // Convertir chaque cellule en chaîne
             foreach ($row as $cell) {
                 $rowData[] = (string)$cell;
             }
 
+            // S'assurer que nous avons suffisamment de colonnes jusqu'à P (index 15)
+            while (count($rowData) < 15) {
+                $rowData[] = ''; // Ajouter des colonnes vides si nécessaire
+            }
+
             // Ajouter la quantité sélectionnée si la description correspond
             $quantite = '';
-            if ($descriptionIndex >= 0 && isset($row[$descriptionIndex])) {
+            if (isset($row[$descriptionIndex]) && !empty($currentSite)) {
                 $description = (string)$row[$descriptionIndex];
-                $descNormalisee = normaliserTexte($description);
 
-                // Log pour débogage
-                // error_log("Recherche de correspondance pour: '$descNormalisee'");
+                // Créer la clé combinée site+description
+                $key = $currentSite . '|' . $description;
 
-                if (isset($quantiteParDescription[$descNormalisee])) {
-                    $quantite = (string)$quantiteParDescription[$descNormalisee];
-                    error_log("Correspondance trouvée! Quantité: $quantite pour description: $description");
-                } else {
-                    // Recherche plus souple - vérifier si la description normalisée contient ou est contenue dans une des clés
-                    foreach ($quantiteParDescription as $key => $qty) {
-                        if (stripos($descNormalisee, $key) !== false || stripos($key, $descNormalisee) !== false) {
-                            $quantite = (string)$qty;
-                            error_log("Correspondance partielle trouvée! '$descNormalisee' ~ '$key', Quantité: $quantite");
-                            break;
-                        }
-                    }
+                if (isset($quantiteParSiteEtDescription[$key])) {
+                    $quantite = (string)$quantiteParSiteEtDescription[$key];
+                    error_log("Correspondance trouvée pour '$key': Quantité: $quantite");
                 }
             }
 
-            // Ajouter la valeur de la quantité à la fin
-            $rowData[] = $quantite;
+            // Placer la valeur de la quantité en colonne P (index 15)
+            $rowData[15] = $quantite;
+
+            // Appliquer un style alterné aux lignes (sauf en-têtes)
+            $style = ($i % 2 === 0) ? $rowStyleEven : $rowStyleOdd;
+
+            // Uniformiser les lignes en appliquant le texte de la même façon
+            $processedRow = [];
+            foreach ($rowData as $cellValue) {
+                // Assurer que toutes les valeurs sont des chaînes
+                $processedRow[] = (string)$cellValue;
+            }
 
             // Écrire la ligne
-            $writer->addRow(WriterEntityFactory::createRowFromArray($rowData));
+            $writer->addRow(WriterEntityFactory::createRowFromArray($processedRow, $style));
         }
 
         // Ajouter une ligne vide après chaque feuille
@@ -342,25 +578,5 @@ function readBPUFile($filePath) {
     }
 
     return $result;
-}
-
-/**
- * Normalise un texte pour faciliter les comparaisons
- * (retire les espaces supplémentaires, convertit en minuscules, supprime les accents)
- *
- * @param string $texte Texte à normaliser
- * @return string Texte normalisé
- */
-function normaliserTexte($texte) {
-    // Convertir en minuscules et supprimer les espaces supplémentaires
-    $texte = mb_strtolower(trim($texte));
-    $texte = preg_replace('/\s+/', ' ', $texte);
-
-    // Remplacer les accents (version simple)
-    $recherche = ['é', 'è', 'ê', 'ë', 'à', 'â', 'ä', 'î', 'ï', 'ô', 'ö', 'ù', 'û', 'ü', 'ç', 'ñ'];
-    $remplace = ['e', 'e', 'e', 'e', 'a', 'a', 'a', 'i', 'i', 'o', 'o', 'u', 'u', 'u', 'c', 'n'];
-    $texte = str_replace($recherche, $remplace, $texte);
-
-    return $texte;
 }
 ?>

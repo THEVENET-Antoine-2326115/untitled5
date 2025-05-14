@@ -986,6 +986,7 @@
             const transportOptionsDiv = document.getElementById('transport-options');
             const transportPanneauxOptionsDiv = document.getElementById('transport-panneaux-options');
             const emballageOptionsDiv = document.getElementById('emballage-options');
+            const repereFilterDiv = document.getElementById('repere-filter');
 
             // Sélectionner le site choisi
             const selectedSite = document.getElementById('site-select').value;
@@ -993,7 +994,7 @@
             // Vérifier qu'un site est sélectionné
             if (!selectedSite) {
                 // Masquer le filtre de repère et les options de transport
-                document.getElementById('repere-filter').style.display = 'none';
+                repereFilterDiv.style.display = 'none';
                 transportOptionsDiv.style.display = 'none';
                 transportPanneauxOptionsDiv.style.display = 'none';
                 emballageOptionsDiv.style.display = 'none';
@@ -1005,7 +1006,7 @@
 
             if (items.length === 0) {
                 // Masquer le filtre de repère et les options de transport
-                document.getElementById('repere-filter').style.display = 'none';
+                repereFilterDiv.style.display = 'none';
                 transportOptionsDiv.style.display = 'none';
                 transportPanneauxOptionsDiv.style.display = 'none';
                 emballageOptionsDiv.style.display = 'none';
@@ -1014,6 +1015,15 @@
 
             // Remplir le sélecteur de repères
             populateRepereSelect(selectedSite);
+
+            // Vérifier si le site a déjà une ligne d'options dans le tableau récapitulatif
+            if (siteHasOptionsInRecap(selectedSite)) {
+                // Si oui, afficher le sélecteur de repère
+                repereFilterDiv.style.display = 'flex';
+            } else {
+                // Sinon, masquer le sélecteur de repère
+                repereFilterDiv.style.display = 'none';
+            }
 
             // Afficher les options de transport (barreaux, panneaux et emballage)
             transportOptionsDiv.style.display = 'flex';
@@ -1044,6 +1054,23 @@
             document.getElementById('dechargement-container').style.display = 'none';
             document.getElementById('manutention-panneaux-container').style.display = 'none';
             document.getElementById('grutage-panneaux-container').style.display = 'none';
+        }
+
+        /**
+         * Vérifie si un site a déjà une ligne d'options dans le tableau récapitulatif
+         * @param {string} site - Le nom du site à vérifier
+         * @returns {boolean} - true si le site a déjà une ligne d'options, false sinon
+         */
+        function siteHasOptionsInRecap(site) {
+            // Si le tableau récapitulatif n'existe pas encore, retourner false
+            if (!window.cumulativeResults || window.cumulativeResults.length === 0) {
+                return false;
+            }
+
+            // Chercher une ligne d'options pour ce site
+            return window.cumulativeResults.some(result =>
+                result.isTransportOnly === true && result.site === site
+            );
         }
 
 // Fonction de filtrage par repère
@@ -1134,7 +1161,7 @@
                 window.cumulativeResults[existingTransportIndex].dechargement = dechargement;
                 window.cumulativeResults[existingTransportIndex].manutentionPanneaux = manutentionPanneaux;
                 window.cumulativeResults[existingTransportIndex].grutagePanneaux = grutagePanneaux;
-                window.cumulativeResults[existingTransportIndex].emballage = emballage; // Ajout de l'emballage
+                window.cumulativeResults[existingTransportIndex].emballage = emballage;
 
                 // Ajouter le nombre de demi-journées seulement si manutention est "oui"
                 if (manutention === "oui") {
@@ -1157,7 +1184,7 @@
                     dechargement: dechargement,
                     manutentionPanneaux: manutentionPanneaux,
                     grutagePanneaux: grutagePanneaux,
-                    emballage: emballage // Ajout de l'emballage
+                    emballage: emballage
                 };
 
                 // Ajouter le nombre de demi-journées seulement si manutention est "oui"
@@ -1167,6 +1194,9 @@
 
                 window.cumulativeResults.push(newEntry);
             }
+
+            // Afficher le sélecteur de repère après validation des options
+            document.getElementById('repere-filter').style.display = 'flex';
 
             // Mettre à jour l'affichage du tableau
             updateResultsTable();
@@ -2774,7 +2804,16 @@
                 searchBySite();
                 // Réinitialiser le sélecteur de repère
                 document.getElementById('repere-select').value = '';
-                // Masquer le formulaire de quantité
+
+                // Obtenir le site sélectionné
+                const selectedSite = document.getElementById('site-select').value;
+
+                // Vérifier si le site a déjà une ligne d'options dans le tableau récapitulatif
+                if (!siteHasOptionsInRecap(selectedSite)) {
+                    // Si non, masquer le filtre de repère
+                    document.getElementById('repere-filter').style.display = 'none';
+                }
+
                 document.getElementById('quantity-filter').style.display = 'none';
                 document.getElementById('dechargement-container').style.display = 'none';
 
@@ -3039,12 +3078,74 @@
         }
 
         /**
-         * Collecte les informations sur les prix calculés
-         * @returns {Object} Un objet contenant les différents prix calculés
+         * Collecte les informations sur les prix calculés avec détails pour l'export Excel
+         * @returns {Object} Un objet contenant les différents prix calculés avec détails
          */
         function collectPriceData() {
             // Calculer les prix
             const priceDetails = calculerPrixTotal();
+
+            // Calculer le nombre total de panneaux
+            let totalPanneaux = 0;
+            let nbPanneauxSupStVallier = 0;
+            let detailMontage = [];
+
+            // Compter les panneaux par type et site
+            if (window.cumulativeResults) {
+                for (const result of window.cumulativeResults) {
+                    // Ne compter que les lignes qui ne sont pas des transports et qui ont une quantité
+                    if (!result.isTransportOnly && result.quantity) {
+                        const quantity = parseInt(result.quantity, 10);
+                        totalPanneaux += quantity;
+
+                        // Compter les panneaux supérieurs de St-Vallier
+                        const estStVallier = result.site &&
+                            (result.site.toUpperCase().includes("SAINT VALLIER") ||
+                                result.site.toUpperCase().includes("ST VALLIER") ||
+                                result.site.toUpperCase().includes("ST-VALLIER"));
+
+                        const estPanneauSuperieur = result.description &&
+                            (result.description.toLowerCase().includes("supérieur") ||
+                                result.description.toLowerCase().includes("superieur"));
+
+                        if (estStVallier && estPanneauSuperieur) {
+                            nbPanneauxSupStVallier += quantity;
+                        }
+
+                        // Ajouter les détails de montage
+                        if (quantity > 0 && result.totalPrice > 0) {
+                            // Calculer le prix unitaire en divisant le prix total par la quantité
+                            const prixUnitaire = result.totalPrice / quantity;
+                            detailMontage.push({
+                                site: result.site,
+                                description: result.description,
+                                quantity: quantity,
+                                prixUnitaire: prixUnitaire,
+                                sousTotal: result.totalPrice
+                            });
+                        }
+                    }
+                }
+            }
+
+            // Collecter les détails des forfaits logistique et suivi
+            const forfaitLogistique = {
+                prixUnitaire: calculerForfaitLogistique(totalPanneaux).toFixed(2).replace('.', ','),
+                montant: calculerForfaitLogistique(totalPanneaux) * totalPanneaux
+            };
+
+            const forfaitSuivi = {
+                prixUnitaire: calculerForfaitSuivi(totalPanneaux).toFixed(2).replace('.', ','),
+                montant: calculerForfaitSuivi(totalPanneaux) * totalPanneaux
+            };
+
+            // Collecter tous les détails de transport, manutention et grutage
+            const transportBarreaux = calculerPrixTransportBarreaux();
+            const transportPanneaux = calculerPrixTransportPanneaux();
+            const manutention = calculerPrixManutention();
+            const manutentionPanneaux = calculerPrixManutentionPanneaux();
+            const grutage = calculerPrixGrutage();
+            const grutagePanneaux = calculerPrixGrutagePanneaux();
 
             return {
                 prixForfaits: priceDetails.prixForfaits || 0,
@@ -3057,9 +3158,24 @@
                 prixGrutagePanneaux: priceDetails.prixGrutagePanneaux || 0,
                 prixEmballage: priceDetails.prixEmballage || 0,
                 prixMontage: priceDetails.prixMontage || 0,
-                prixTotal: priceDetails.prixTotal || 0
+                prixTotal: priceDetails.prixTotal || 0,
+
+                // Données détaillées pour les calculs
+                totalPanneaux: totalPanneaux,
+                nbPanneauxSupStVallier: nbPanneauxSupStVallier,
+                forfaitLogistique: forfaitLogistique,
+                forfaitSuivi: forfaitSuivi,
+                transportBarreaux: transportBarreaux,
+                transportPanneaux: transportPanneaux,
+                manutention: manutention,
+                manutentionPanneaux: manutentionPanneaux,
+                grutage: grutage,
+                grutagePanneaux: grutagePanneaux,
+                detailMontage: detailMontage
             };
         }
+
+// Remplacer l'ancienne fonction collectPriceData par cette nouvelle version
 
         /**
          * Collecte les informations sur les sites et repères sélectionnés
