@@ -91,7 +91,7 @@ try {
         'Manutention Panneaux',
         'Grutage Panneaux',
         'Emballage',
-        'Prix Total'
+
     ];
     $writer->addRow(WriterEntityFactory::createRowFromArray($recapHeaders, $headerStyle));
 
@@ -110,7 +110,7 @@ try {
             (string)($item['manutentionPanneaux'] ?? ''),
             (string)($item['grutagePanneaux'] ?? ''),
             (string)($item['emballage'] ?? ''),
-            isset($item['totalPrice']) ? number_format((float)$item['totalPrice'], 2, ',', ' ') . ' €' : ''
+
         ];
         $writer->addRow(WriterEntityFactory::createRowFromArray($rowData));
     }
@@ -129,11 +129,11 @@ try {
     $priceHeaders = [
         'Désignation',
         'Quantité',
-        'Camions',
-        'Demi-journées',
-        'Prix unitaire (€)',
+        'Nombre camion',
+        'Nombre Demi-journée',
+        'Prix unitaire hors taxe (€)',
         'Formule de calcul',
-        'Montant total (€)'
+        'Montant total hors taxe (€)'
     ];
     $writer->addRow(WriterEntityFactory::createRowFromArray($priceHeaders, $headerStyle));
 
@@ -336,9 +336,6 @@ try {
         // Utiliser le style total pour la dernière ligne (PRIX TOTAL)
         if ($index === count($priceData) - 1) {
             $style = $totalRowStyle;
-        } else {
-            // Utiliser des couleurs alternées pour les autres lignes
-            $style = ($index % 2 === 0) ? $rowStyleEven : $rowStyleOdd;
         }
 
         // Uniformiser les lignes en appliquant le texte de la même façon
