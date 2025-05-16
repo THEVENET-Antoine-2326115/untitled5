@@ -549,6 +549,31 @@
         </div>
     </div>
 
+    <!-- Options d'entretoises (initialement masquées) -->
+    <div id="entretoises-options" class="search-form" style="display: none; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
+        <!-- Entretoises fournies par CNR -->
+        <div class="transport-option">
+            <label>Entretoises fournies par CNR:</label>
+            <div class="radio-group">
+                <input type="radio" id="entretoises-cnr-oui" name="entretoises-cnr" value="oui">
+                <label for="entretoises-cnr-oui">Oui</label>
+                <input type="radio" id="entretoises-cnr-non" name="entretoises-cnr" value="non" checked>
+                <label for="entretoises-cnr-non">Non</label>
+            </div>
+        </div>
+
+        <!-- Type d'entretoises (masqué par défaut) -->
+        <div id="entretoises-type-container" class="transport-option" style="display: none; margin-left: 20px;">
+            <div class="radio-group">
+                <input type="radio" id="entretoises-type-partiel" name="entretoises-type" value="partiel" checked>
+                <label for="entretoises-type-partiel">Partiel</label>
+                <input type="radio" id="entretoises-type-tous" name="entretoises-type" value="tous">
+                <label for="entretoises-type-tous">Tous</label>
+            </div>
+        </div>
+    </div>
+
+
     <!-- Bouton de validation commun aux deux sections -->
     <div class="search-form" style="margin-top: 20px;">
         <button id="validate-transport-button" class="search-button">Valider les options</button>
@@ -597,6 +622,8 @@
         let manutentionPanneaux = "non";
         let grutagePanneaux = "non";
         let emballage = "non";
+        let entretoisesParCNR = "non";
+        let entretoisesType = "partiel";
 
         // Configuration de l'authentification
         const authModal = document.getElementById('authModal');
@@ -936,7 +963,7 @@
             const reperes = new Set();
 
             // Mots à bannir
-            const motsABannir = ['entretoise', 'capot', 'attache'];
+            const motsABannir = ['entretoise', 'attache'];
 
             // Ajouter chaque description unique qui contient le mot "Panneaux" (ou variations)
             // et qui ne contient aucun des mots bannis
@@ -986,6 +1013,7 @@
             const transportOptionsDiv = document.getElementById('transport-options');
             const transportPanneauxOptionsDiv = document.getElementById('transport-panneaux-options');
             const emballageOptionsDiv = document.getElementById('emballage-options');
+            const entretoiseOptionsDiv = document.getElementById('entretoises-options');
             const repereFilterDiv = document.getElementById('repere-filter');
 
             // Sélectionner le site choisi
@@ -998,6 +1026,7 @@
                 transportOptionsDiv.style.display = 'none';
                 transportPanneauxOptionsDiv.style.display = 'none';
                 emballageOptionsDiv.style.display = 'none';
+                entretoiseOptionsDiv.style.display = 'none';
                 return;
             }
 
@@ -1010,6 +1039,7 @@
                 transportOptionsDiv.style.display = 'none';
                 transportPanneauxOptionsDiv.style.display = 'none';
                 emballageOptionsDiv.style.display = 'none';
+                entretoiseOptionsDiv.style.display = 'none';
                 return;
             }
 
@@ -1025,10 +1055,11 @@
                 repereFilterDiv.style.display = 'none';
             }
 
-            // Afficher les options de transport (barreaux, panneaux et emballage)
+            // Afficher les options de transport (barreaux, panneaux, emballage et entretoises)
             transportOptionsDiv.style.display = 'flex';
             transportPanneauxOptionsDiv.style.display = 'flex';
             emballageOptionsDiv.style.display = 'flex';
+            entretoiseOptionsDiv.style.display = 'flex';
 
             // Réinitialiser les boutons radio à leur valeur par défaut
             document.getElementById('transport-barreaux-non').checked = true;
@@ -1039,6 +1070,10 @@
             document.getElementById('grutage-panneaux-non').checked = true;
             document.getElementById('emballage-non').checked = true;
 
+            // Réinitialiser les options d'entretoises
+            document.getElementById('entretoises-cnr-non').checked = true;
+            document.getElementById('entretoises-type-partiel').checked = true;
+
             // Réinitialiser les variables globales
             transportBarreaux = "non";
             transportPanneaux = "non";
@@ -1046,7 +1081,9 @@
             dechargement = "non";
             manutentionPanneaux = "non";
             grutagePanneaux = "non";
-            emballage = "non"; // Nouvelle variable pour l'emballage
+            emballage = "non";
+            entretoisesParCNR = "non";
+            entretoisesType = "partiel";
 
             // Masquer les options dépendantes
             document.getElementById('manutention-container').style.display = 'none';
@@ -1054,6 +1091,7 @@
             document.getElementById('dechargement-container').style.display = 'none';
             document.getElementById('manutention-panneaux-container').style.display = 'none';
             document.getElementById('grutage-panneaux-container').style.display = 'none';
+            document.getElementById('entretoises-type-container').style.display = 'none';
         }
 
         /**
@@ -1163,6 +1201,10 @@
                 window.cumulativeResults[existingTransportIndex].grutagePanneaux = grutagePanneaux;
                 window.cumulativeResults[existingTransportIndex].emballage = emballage;
 
+                // Ajouter les options d'entretoises
+                window.cumulativeResults[existingTransportIndex].entretoisesParCNR = entretoisesParCNR;
+                window.cumulativeResults[existingTransportIndex].entretoisesType = entretoisesType;
+
                 // Ajouter le nombre de demi-journées seulement si manutention est "oui"
                 if (manutention === "oui") {
                     window.cumulativeResults[existingTransportIndex].manutentionDays = nbDemiJournees;
@@ -1184,7 +1226,9 @@
                     dechargement: dechargement,
                     manutentionPanneaux: manutentionPanneaux,
                     grutagePanneaux: grutagePanneaux,
-                    emballage: emballage
+                    emballage: emballage,
+                    entretoisesParCNR: entretoisesParCNR,
+                    entretoisesType: entretoisesType
                 };
 
                 // Ajouter le nombre de demi-journées seulement si manutention est "oui"
@@ -2500,7 +2544,7 @@
                 <th>Quantité</th>
                 <th>Transport Barreaux</th>
                 <th>Transport Panneaux</th>
-                <th>Emballage</th>
+                <th>Autres</th>
                 <th>Action</th>
             </tr>
     `;
@@ -2516,29 +2560,33 @@
                     }
 
                     finalResultsHtml += `
-                <tr id="row-${result.id}" style="background-color: #f0f8ff;">
-                    <td>${escapeHtml(result.site)}</td>
-                    <td colspan="2" style="text-align: center; font-style: italic;">Options</td>
-                    <td>
-                        <div>Barreaux: ${result.transportBarreaux}</div>
-                        <div>Manutention: ${manutentionDisplay}</div>
-                        <div>Grutage: ${result.dechargement || 'non'}</div>
-                    </td>
-                    <td>
-                        <div>Panneaux: ${result.transportPanneaux}</div>
-                        <div>Manutention: ${result.manutentionPanneaux || 'non'}</div>
-                        <div>Grutage: ${result.grutagePanneaux || 'non'}</div>
-                    </td>
-                    <td>${result.emballage || 'non'}</td>
-                    <td>
-                        <button class="delete-row-btn" data-id="${result.id}"
-                                style="background-color: #f44336; color: white; border: none;
-                                       padding: 5px 10px; border-radius: 3px; cursor: pointer;">
-                            Supprimer
-                        </button>
-                    </td>
-                </tr>
-            `;
+<tr id="row-${result.id}" style="background-color: #f0f8ff;">
+    <td>${escapeHtml(result.site)}</td>
+    <td colspan="2" style="text-align: center; font-style: italic;">Options</td>
+    <td>
+        <div>Barreaux: ${result.transportBarreaux}</div>
+        <div>Manutention: ${manutentionDisplay}</div>
+        <div>Grutage: ${result.dechargement || 'non'}</div>
+    </td>
+    <td>
+        <div>Panneaux: ${result.transportPanneaux}</div>
+        <div>Manutention: ${result.manutentionPanneaux || 'non'}</div>
+        <div>Grutage: ${result.grutagePanneaux || 'non'}</div>
+    </td>
+    <td>
+        <div>Emballage: ${result.emballage || 'non'}</div>
+        <div>Entretoises CNR: ${result.entretoisesParCNR || 'non'}</div>
+        ${result.entretoisesParCNR === 'oui' ? `<div>Type: ${result.entretoisesType || 'partiel'}</div>` : ''}
+    </td>
+    <td>
+        <button class="delete-row-btn" data-id="${result.id}"
+                style="background-color: #f44336; color: white; border: none;
+                       padding: 5px 10px; border-radius: 3px; cursor: pointer;">
+            Supprimer
+        </button>
+    </td>
+</tr>
+`;
                 } else {
                     // Pour les entrées normales (produits)
                     finalResultsHtml += `
@@ -2795,6 +2843,42 @@
                 radio.addEventListener('change', function() {
                     emballage = this.value;
                     console.log("Emballage:", emballage);
+                });
+            });
+
+            // Afficher les options d'entretoises
+            document.getElementById('entretoises-options').style.display = 'flex';
+
+            const entretoiseOptionsDiv = document.getElementById('entretoises-options');
+            if (entretoiseOptionsDiv) {
+                entretoiseOptionsDiv.style.display = 'none';
+            }
+
+            // Gestionnaires d'événements pour les boutons radio d'entretoises CNR
+            document.querySelectorAll('input[name="entretoises-cnr"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    entretoisesParCNR = this.value;
+                    console.log("Entretoises fournies par CNR:", entretoisesParCNR);
+
+                    // Afficher ou masquer les options de type d'entretoises
+                    const entretoisesTypeContainer = document.getElementById('entretoises-type-container');
+
+                    if (entretoisesParCNR === "oui") {
+                        entretoisesTypeContainer.style.display = "flex";
+                    } else {
+                        entretoisesTypeContainer.style.display = "none";
+                        // Réinitialiser l'option à "partiel"
+                        document.getElementById('entretoises-type-partiel').checked = true;
+                        entretoisesType = "partiel";
+                    }
+                });
+            });
+
+            // Gestionnaires d'événements pour les boutons radio de type d'entretoises
+            document.querySelectorAll('input[name="entretoises-type"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    entretoisesType = this.value;
+                    console.log("Type d'entretoises:", entretoisesType);
                 });
             });
 

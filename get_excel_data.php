@@ -12,7 +12,8 @@ header('Content-Type: application/json');
 // Chemins vers les fichiers Excel
 $excelFilePaths = [
     'file1' => "BPU_vrai.xlsx",
-    'file2' => "ref.xlsx"
+    'file2' => "ref.xlsx",
+    'file3' => "NomenclatureEntretoise.xlsx"
 ];
 
 $response = [];
