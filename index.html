@@ -597,6 +597,28 @@
         </div>
         <button id="calculate-button" class="search-button">Valider</button>
     </div>
+
+    <!-- Sélection d'entretoises spécifiques (initialement masquée) -->
+    <div id="entretoises-selection" class="search-form" style="display: none; margin-top: 20px; border-top: 1px solid #eee; padding-top: 20px;">
+        <div class="search-title">Sélection d'entretoises spécifiques</div>
+        <div style="margin: 10px 0;">
+            <p id="entretoise-info">Veuillez sélectionner une entretoise pour ce panneau.</p>
+        </div>
+        <select id="entretoise-select" class="search-select">
+            <option value="">Sélectionnez une entretoise...</option>
+            <!-- Les options seront ajoutées dynamiquement en JavaScript -->
+        </select>
+        <div style="margin-top: 10px;">
+            <label for="entretoise-quantity">Quantité par panneau:</label>
+            <input type="number" id="entretoise-quantity" class="search-input" min="1" value="1" style="width: 60px;">
+        </div>
+        <button id="add-entretoise-button" class="search-button" style="margin-top: 10px;">Ajouter entretoise</button>
+        <div id="entretoises-selected" style="margin-top: 15px; display: none;">
+            <div class="search-title">Entretoises sélectionnées</div>
+            <ul id="entretoises-list" style="list-style-type: none; padding: 0;"></ul>
+        </div>
+    </div>
+
     <div id="site-result" style="display: none;"></div>
 </div>
 
@@ -624,6 +646,9 @@
         let emballage = "non";
         let entretoisesParCNR = "non";
         let entretoisesType = "partiel";
+        let entretoisesParPanneaux = {};
+        let currentPanneauWithEntretoises = null;
+        let selectedEntretoises = [];
 
         // Configuration de l'authentification
         const authModal = document.getElementById('authModal');
@@ -1111,19 +1136,33 @@
             );
         }
 
-// Fonction de filtrage par repère
-        function filterByRepere() {
-            const resultDiv = document.getElementById('site-result');
-            const selectedSite = document.getElementById('site-select').value;
-            const selectedRepere = document.getElementById('repere-select').value;
-            const quantityFilterDiv = document.getElementById('quantity-filter');
 
-            // Supprimons cette ligne qui masque le div de résultat
-            // resultDiv.style.display = 'none';
+// Fonction sécurisée pour accéder aux éléments DOM
+        function getElement(id) {
+            const element = document.getElementById(id);
+            if (!element) {
+                console.warn(`Élément avec l'ID '${id}' introuvable dans le DOM`);
+                return null;
+            }
+            return element;
+        }
+
+// Fonction pour vérifier si nous devons afficher le sélecteur d'entretoises spécifiques
+        function shouldShowEntretoiseSelection() {
+            return entretoisesParCNR === "oui" && entretoisesType === "partiel";
+        }
+
+// Version sécurisée de filterByRepere
+        function filterByRepere() {
+            const selectedSite = getElement('site-select')?.value || '';
+            const selectedRepere = getElement('repere-select')?.value || '';
+            const quantityFilterDiv = getElement('quantity-filter');
+            const entretoiseSelectionDiv = getElement('entretoises-selection');
 
             // Vérifier qu'un site et un repère sont sélectionnés
             if (!selectedSite || !selectedRepere) {
-                quantityFilterDiv.style.display = 'none';
+                if (quantityFilterDiv) quantityFilterDiv.style.display = 'none';
+                if (entretoiseSelectionDiv) entretoiseSelectionDiv.style.display = 'none';
                 return;
             }
 
@@ -1143,22 +1182,786 @@
             const filteredItems = allItems.filter(item => item.description === selectedRepere);
 
             if (filteredItems.length === 0) {
-                // Supprimons/modifions cette partie qui remplace le contenu du résultat
-                // resultDiv.innerHTML = `<div class="no-result">Aucun item trouvé pour le repère "${escapeHtml(selectedRepere)}"</div>`;
-                // Au lieu de cela, affichons une alerte non bloquante
                 alert(`Aucun item trouvé pour le repère "${selectedRepere}"`);
-                quantityFilterDiv.style.display = 'none';
+                if (quantityFilterDiv) quantityFilterDiv.style.display = 'none';
+                if (entretoiseSelectionDiv) entretoiseSelectionDiv.style.display = 'none';
                 return;
             }
 
             // Stocker les items filtrés dans une variable globale pour la fonction de calcul
             window.currentFilteredItems = filteredItems;
 
+            // Si c'est un nouveau panneau, réinitialiser les entretoises sélectionnées
+            if (currentPanneauWithEntretoises !== selectedRepere) {
+                currentPanneauWithEntretoises = selectedRepere;
+                selectedEntretoises = [];
+                const entrtoisesList = getElement('entretoises-list');
+                if (entrtoisesList) entrtoisesList.innerHTML = '';
+                const entretoisesSelected = getElement('entretoises-selected');
+                if (entretoisesSelected) entretoisesSelected.style.display = 'none';
+            }
+
+            // Vérifier si nous devons afficher le sélecteur d'entretoises spécifiques
+            if (shouldShowEntretoiseSelection() && entretoiseSelectionDiv) {
+                // Afficher le sélecteur d'entretoises spécifiques
+                entretoiseSelectionDiv.style.display = 'block';
+
+                // Populer le sélecteur d'entretoises avec le site et le panneau
+                try {
+                    populateEntretoiseSelect(selectedSite, selectedRepere);
+                } catch (error) {
+                    console.error("Erreur lors du remplissage du sélecteur d'entretoises:", error);
+                }
+            } else if (entretoiseSelectionDiv) {
+                // Masquer le sélecteur d'entretoises spécifiques
+                entretoiseSelectionDiv.style.display = 'none';
+            }
+
             // Afficher le formulaire de quantité
-            quantityFilterDiv.style.display = 'flex';
+            if (quantityFilterDiv) {
+                quantityFilterDiv.style.display = 'flex';
+            }
 
             // Réinitialiser la quantité à 1
-            document.getElementById('quantity-input').value = 1;
+            const quantityInput = getElement('quantity-input');
+            if (quantityInput) {
+                quantityInput.value = 1;
+            }
+
+            // Mettre à jour le texte d'information sur les entretoises
+            try {
+                updateEntretoiseInfo();
+            } catch (error) {
+                console.warn("La fonction updateEntretoiseInfo n'est pas définie ou a généré une erreur:", error);
+            }
+        }
+
+// Fonction pour mettre à jour le texte d'information sur les entretoises
+        function updateEntretoiseInfo() {
+            const infoElement = getElement('entretoise-info');
+            if (!infoElement) return;
+
+            const quantityInput = getElement('quantity-input');
+            const panneauQuantity = quantityInput ? (parseInt(quantityInput.value) || 1) : 1;
+
+            if (!selectedEntretoises || selectedEntretoises.length === 0) {
+                infoElement.textContent = `Veuillez sélectionner une pièce pour ce panneau (quantité de panneaux: ${panneauQuantity}).`;
+            } else {
+                let totalPieces = 0;
+                selectedEntretoises.forEach(entretoise => {
+                    const defaultQty = entretoise.defaultQuantity || 1;
+                    const userQty = entretoise.userSelectedQuantity || 1;
+                    totalPieces += defaultQty * panneauQuantity * userQty;
+                });
+
+                infoElement.textContent = `Vous avez sélectionné ${selectedEntretoises.length} type(s) de pièces pour un total de ${totalPieces} pièces.`;
+            }
+        }
+
+        // Fonction pour extraire les correspondances entretoises-panneaux du fichier NomenclatureEntretoise.xlsx
+        function extractEntretoisesMapping(data) {
+            console.log("Extraction des correspondances pièces-panneaux...");
+            const mappings = {};
+
+            // Vérifier si les données sont disponibles
+            if (!data || !data.file3 || !data.file3.data) {
+                console.warn("Données de NomenclatureEntretoise.xlsx non disponibles");
+                return mappings;
+            }
+
+            const fileData = data.file3.data;
+
+            // Parcourir chaque feuille
+            for (const sheetName in fileData) {
+                console.log(`Traitement de la feuille: ${sheetName}`);
+                const sheetData = fileData[sheetName];
+
+                // Vérifier si la feuille contient des données
+                if (!sheetData || sheetData.length < 2) {
+                    console.log("Feuille sans données, ignorée");
+                    continue;
+                }
+
+                // Trouver les colonnes correspondant aux en-têtes
+                const headerRow = sheetData[0] || [];
+                const tableStarts = [];
+
+                // Rechercher les positions de toutes les colonnes "REPERE" ou "Repere"
+                for (let colIndex = 0; colIndex < headerRow.length; colIndex++) {
+                    const cellValue = String(headerRow[colIndex] || '').trim().toUpperCase();
+                    if (cellValue === 'REPERE') {
+                        // Trouvé le début d'un tableau
+                        tableStarts.push({
+                            repereCol: colIndex,
+                            planCol: colIndex + 1, // N°PLAN est généralement la colonne suivante
+                            qteCol: colIndex + 2,  // QTE est généralement deux colonnes plus loin
+                            nomCol: colIndex + 3   // NOM est généralement trois colonnes plus loin
+                        });
+                        console.log(`Tableau trouvé à la colonne ${colIndex}`);
+                    }
+                }
+
+                // Si aucun tableau n'est trouvé, passer à la feuille suivante
+                if (tableStarts.length === 0) {
+                    console.log("Aucun tableau trouvé dans cette feuille");
+                    continue;
+                }
+
+                // Traiter chaque tableau
+                for (const tableInfo of tableStarts) {
+                    const { repereCol, planCol, qteCol, nomCol } = tableInfo;
+
+                    // Vérifier que les colonnes sont valides
+                    if (nomCol >= headerRow.length) {
+                        console.log(`Colonnes invalides pour le tableau commençant à ${repereCol}, ignoré`);
+                        continue;
+                    }
+
+                    // Vérifier les noms des colonnes pour confirmer qu'il s'agit bien d'un tableau
+                    const repereHeader = String(headerRow[repereCol] || '').trim().toUpperCase();
+                    const nomHeader = String(headerRow[nomCol] || '').trim().toUpperCase();
+
+                    if (repereHeader !== 'REPERE' || nomHeader !== 'NOM') {
+                        console.log(`En-têtes invalides: ${repereHeader}, ${nomHeader}, ignoré`);
+                        continue;
+                    }
+
+                    console.log(`Tableau confirmé: REPERE à ${repereCol}, NOM à ${nomCol}`);
+
+                    // Trouver la ligne du panneau (généralement la première ligne de données)
+                    let currentPanneauInfo = null;
+
+                    // Parcourir les lignes pour traiter le tableau
+                    for (let rowIndex = 1; rowIndex < sheetData.length; rowIndex++) {
+                        const row = sheetData[rowIndex];
+                        if (!row || row.length <= nomCol) continue;
+
+                        const repere = String(row[repereCol] || '').trim();
+                        const nom = String(row[nomCol] || '').trim();
+                        const qte = row[qteCol] ? parseInt(row[qteCol]) : 1;
+
+                        // Si le repère est vide ou '-' et le nom contient un site connu, c'est un panneau
+                        if ((repere === '' || repere === '-') && isPanneauName(nom)) {
+                            // Trouvé un panneau
+                            const panneauInfo = extractPanneauSiteInfo(nom);
+                            if (panneauInfo) {
+                                currentPanneauInfo = panneauInfo;
+                                console.log(`Panneau trouvé: ${nom}, site: ${panneauInfo.site}, panneau: ${panneauInfo.panneau}`);
+                            }
+                            continue;
+                        }
+
+                        // Si nous avons un panneau courant et que cette ligne est une pièce (a un nom)
+                        if (currentPanneauInfo && nom && nom.trim() !== '') {
+                            const { site, panneau } = currentPanneauInfo;
+                            const panneauKey = `${site}|${panneau}`;
+
+                            // Créer une clé supplémentaire pour les cas spéciaux comme AVIGNON G1, G2, etc.
+                            let specialKey = null;
+                            if (site === "AVIGNON" && panneau.match(/G\d+/i)) {
+                                const panneauCode = panneau.match(/G\d+/i)[0];
+                                specialKey = `AVIGNON|${panneauCode}`;
+                            }
+
+                            // Initialiser le tableau pour ce panneau s'il n'existe pas
+                            if (!mappings[panneauKey]) {
+                                mappings[panneauKey] = [];
+                            }
+
+                            // Ajouter la pièce au mapping
+                            const pieceEntry = {
+                                repere: repere,
+                                nom: nom,
+                                quantite: qte,
+                                noPlan: String(row[planCol] || '').trim()
+                            };
+
+                            mappings[panneauKey].push(pieceEntry);
+                            console.log(`Pièce ajoutée pour ${panneauKey}: ${repere} - ${nom} (${qte})`);
+
+                            // Si une clé spéciale existe, l'ajouter également
+                            if (specialKey && specialKey !== panneauKey) {
+                                if (!mappings[specialKey]) {
+                                    mappings[specialKey] = [];
+                                }
+                                mappings[specialKey].push(pieceEntry);
+                                console.log(`Pièce ajoutée pour clé spéciale ${specialKey}: ${repere} - ${nom} (${qte})`);
+                            }
+                        }
+                    }
+                }
+            }
+
+            console.log("Correspondances pièces-panneaux extraites:", mappings);
+            return mappings;
+        }
+
+// Fonction auxiliaire améliorée pour extraire le site et le panneau à partir du nom
+        function extractPanneauSiteInfo(nom) {
+            const nom_upper = nom.toUpperCase();
+
+            // Liste des sites connus
+            const knownSites = [
+                "DTHR", "DTRS", "DTRI", "DTRM",
+                "SEYSSEL", "CHAUTAGNE", "BELLEY", "BREGNIER-CORDON", "SAULT-BRENAZ",
+                "PIERRE-BENITE", "VAUGRIS", "PEAGE DE ROUSSILLON", "SAINT VALLIER", "ST VALLIER",
+                "BOURG-LES-VALENCE", "BEAUCHASTEL", "LOGIS-NEUF",
+                "MONTELIMAR", "DONZERE MONDRAGON",
+                "AVIGNON", "SAUVETERRE", "CADEROUSSE", "VALLABREGUES"
+            ];
+
+            // Trouver le site dans le nom
+            let site = null;
+            for (const knownSite of knownSites) {
+                if (nom_upper.includes(knownSite)) {
+                    site = knownSite;
+                    break;
+                }
+            }
+
+            // Si aucun site n'est trouvé explicitement
+            if (!site) {
+                // Pour les panneaux comme "PANNEAU INF BELLEY", extraire le site à la fin
+                const match = nom_upper.match(/PANNEAU\s+(INF|SUP)\s+(.+)/i);
+                if (match && match[2]) {
+                    const potentialSite = match[2].trim();
+                    // Vérifier si ce site est connu
+                    for (const knownSite of knownSites) {
+                        if (potentialSite.includes(knownSite) || knownSite.includes(potentialSite)) {
+                            site = knownSite;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Si toujours pas de site, regarder s'il y a un pattern connu comme "AVIGNON G1"
+            if (!site) {
+                const match = nom_upper.match(/^([A-Z]+)\s+([A-Z0-9]+)$/i);
+                if (match && match[1]) {
+                    const potentialSite = match[1].trim();
+                    // Vérifier si ce site est connu
+                    for (const knownSite of knownSites) {
+                        if (potentialSite.includes(knownSite) || knownSite.includes(potentialSite)) {
+                            site = knownSite;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Si toujours pas de site trouvé
+            if (!site) {
+                console.log(`Aucun site reconnu dans le nom: ${nom}`);
+                return null;
+            }
+
+            // Extraire le panneau
+            let panneau = nom.replace(new RegExp(site, 'i'), '').trim();
+
+            // Si le panneau est vide ou ne contient qu'un espace, utiliser le nom complet
+            if (!panneau || panneau === '') {
+                panneau = nom;
+            }
+
+            // Cas spécial pour AVIGNON G1, G2, etc.
+            if (site === "AVIGNON" && nom_upper.match(/G\d+/i)) {
+                panneau = nom_upper.match(/G\d+/i)[0];
+            }
+
+            // Traiter les cas spéciaux
+            if (nom_upper.includes("PANNEAU INF")) {
+                panneau = "PANNEAU INFERIEUR";
+            } else if (nom_upper.includes("PANNEAU SUP")) {
+                panneau = "PANNEAU SUPERIEUR";
+            } else if (nom_upper.match(/^ST[-\s]?VALLIER\s+P\d+X?$/i)) {
+                // Pour les panneaux comme "ST VALLIER P3"
+                panneau = nom;
+            }
+
+            return { site, panneau };
+        }
+
+
+// Fonction pour vérifier si un nom contient un panneau
+        function isPanneauName(nom) {
+            const nom_upper = nom.toUpperCase();
+
+            // Liste des sites connus
+            const knownSites = [
+                "DTHR", "DTRS", "DTRI", "DTRM",
+                "SEYSSEL", "CHAUTAGNE", "BELLEY", "BREGNIER-CORDON", "SAULT-BRENAZ",
+                "PIERRE-BENITE", "VAUGRIS", "PEAGE DE ROUSSILLON", "SAINT VALLIER", "ST VALLIER",
+                "BOURG-LES-VALENCE", "BEAUCHASTEL", "LOGIS-NEUF",
+                "MONTELIMAR", "DONZERE MONDRAGON",
+                "AVIGNON", "SAUVETERRE", "CADEROUSSE", "VALLABREGUES"
+            ];
+
+            // Vérifier si le nom contient l'un des sites connus
+            const containsSite = knownSites.some(site => nom_upper.includes(site));
+
+            // Vérifier si le nom contient "PANNEAU" ou des mots-clés spécifiques
+            const isPanneau = nom_upper.includes("PANNEAU") ||
+                nom_upper.includes("INF") ||
+                nom_upper.includes("SUP") ||
+                /^[A-Z]+ [A-Z0-9]+$/i.test(nom); // Pattern comme "AVIGNON G1"
+
+            return containsSite || isPanneau;
+        }
+
+// Fonction pour extraire le site et le panneau à partir du nom
+        function extractPanneauSiteInfo(nom) {
+            const nom_upper = nom.toUpperCase();
+
+            // Liste des sites connus
+            const knownSites = [
+                "DTHR", "DTRS", "DTRI", "DTRM",
+                "SEYSSEL", "CHAUTAGNE", "BELLEY", "BREGNIER-CORDON", "SAULT-BRENAZ",
+                "PIERRE-BENITE", "VAUGRIS", "PEAGE DE ROUSSILLON", "SAINT VALLIER", "ST VALLIER",
+                "BOURG-LES-VALENCE", "BEAUCHASTEL", "LOGIS-NEUF",
+                "MONTELIMAR", "DONZERE MONDRAGON",
+                "AVIGNON", "SAUVETERRE", "CADEROUSSE", "VALLABREGUES"
+            ];
+
+            // Trouver le site dans le nom
+            let site = null;
+            for (const knownSite of knownSites) {
+                if (nom_upper.includes(knownSite)) {
+                    site = knownSite;
+                    break;
+                }
+            }
+
+            // Si aucun site n'est trouvé explicitement
+            if (!site) {
+                // Pour les panneaux comme "PANNEAU INF BELLEY", extraire le site à la fin
+                const match = nom_upper.match(/PANNEAU\s+(INF|SUP)\s+(.+)/i);
+                if (match && match[2]) {
+                    const potentialSite = match[2].trim();
+                    // Vérifier si ce site est connu
+                    for (const knownSite of knownSites) {
+                        if (potentialSite.includes(knownSite) || knownSite.includes(potentialSite)) {
+                            site = knownSite;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Si toujours pas de site, regarder s'il y a un pattern connu comme "AVIGNON G1"
+            if (!site) {
+                const match = nom_upper.match(/^([A-Z]+)\s+([A-Z0-9]+)$/i);
+                if (match && match[1]) {
+                    const potentialSite = match[1].trim();
+                    // Vérifier si ce site est connu
+                    for (const knownSite of knownSites) {
+                        if (potentialSite.includes(knownSite) || knownSite.includes(potentialSite)) {
+                            site = knownSite;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Si toujours pas de site trouvé
+            if (!site) {
+                console.log(`Aucun site reconnu dans le nom: ${nom}`);
+                return null;
+            }
+
+            // Extraire le panneau
+            let panneau = nom.replace(new RegExp(site, 'i'), '').trim();
+
+            // Si le panneau est vide ou ne contient qu'un espace, utiliser le nom complet
+            if (!panneau || panneau === '') {
+                panneau = nom;
+            }
+
+            // Traiter les cas spéciaux
+            if (nom_upper.includes("PANNEAU INF")) {
+                panneau = "PANNEAU INFERIEUR";
+            } else if (nom_upper.includes("PANNEAU SUP")) {
+                panneau = "PANNEAU SUPERIEUR";
+            } else if (nom_upper.match(/^ST[-\s]?VALLIER\s+P\d+X?$/i)) {
+                // Pour les panneaux comme "ST VALLIER P3"
+                panneau = nom;
+            } else if (site === "AVIGNON" && nom_upper.match(/G\d+$/)) {
+                // Pour les panneaux comme "AVIGNON G1"
+                panneau = nom;
+            }
+
+            return { site, panneau };
+        }
+
+// Fonction auxiliaire pour extraire les informations de site et panneau à partir du nom de feuille
+        function extractPanneauInfoFromSheetName(sheetName) {
+            // Liste des sites connus
+            const knownSites = [
+                "DTHR", "DTRS", "DTRI", "DTRM",
+                "SEYSSEL", "CHAUTAGNE", "BELLEY", "BREGNIER-CORDON", "SAULT-BRENAZ",
+                "PIERRE-BENITE", "VAUGRIS", "PEAGE DE ROUSSILLON", "SAINT VALLIER", "ST VALLIER",
+                "BOURG-LES-VALENCE", "BEAUCHASTEL", "LOGIS-NEUF",
+                "MONTELIMAR", "DONZERE MONDRAGON",
+                "AVIGNON", "SAUVETERRE", "CADEROUSSE", "VALLABREGUES"
+            ];
+
+            // Convertir en majuscules pour la comparaison
+            const sheetNameUpper = sheetName.toUpperCase();
+
+            // Chercher le site dans le nom de feuille
+            let siteTrouve = null;
+            for (const site of knownSites) {
+                if (sheetNameUpper.includes(site)) {
+                    siteTrouve = site;
+                    break;
+                }
+            }
+
+            // Si aucun site n'est trouvé, essayer d'extraire à partir de motifs courants
+            if (!siteTrouve) {
+                // Essayer de trouver un pattern comme "Site - Panneau"
+                const sitePattern = /^([A-Za-z\s\-]+)\s*[-:]\s*(.+)$/;
+                const match = sheetNameUpper.match(sitePattern);
+                if (match) {
+                    siteTrouve = match[1].trim();
+                }
+            }
+
+            // Si toujours pas de site, utiliser le nom de la feuille comme identifiant
+            if (!siteTrouve) {
+                console.log(`Aucun site reconnu dans le nom de feuille: ${sheetName}`);
+                return null;
+            }
+
+            // Extraire le nom du panneau du nom de feuille
+            // Cela peut être complexe selon le format, mais essayons quelques patterns
+
+            // Pattern 1: "Site - Panneau"
+            let panneauPattern = new RegExp(`${siteTrouve}\\s*[-:]\\s*(.+)`, 'i');
+            let panneauMatch = sheetNameUpper.match(panneauPattern);
+
+            if (panneauMatch) {
+                return {
+                    site: siteTrouve,
+                    panneau: panneauMatch[1].trim()
+                };
+            }
+
+            // Pattern 2: Nom de feuille contient le site et quelque chose d'autre
+            panneauPattern = new RegExp(`${siteTrouve}\\s+(.+)`, 'i');
+            panneauMatch = sheetNameUpper.match(panneauPattern);
+
+            if (panneauMatch) {
+                return {
+                    site: siteTrouve,
+                    panneau: panneauMatch[1].trim()
+                };
+            }
+
+            // Si aucun pattern ne correspond, utiliser le nom de feuille comme panneau
+            return {
+                site: siteTrouve,
+                panneau: sheetName.replace(new RegExp(siteTrouve, 'i'), '').trim() || "PANNEAU"
+            };
+        }
+
+// Fonction pour remplir le sélecteur d'entretoises spécifiques
+        function populateEntretoiseSelect(site, panneau) {
+            console.log(`Remplissage du sélecteur pour site: ${site}, panneau: ${panneau}`);
+            const selectElement = getElement('entretoise-select');
+            if (!selectElement) {
+                console.error("Élément select pour entretoises non trouvé");
+                return;
+            }
+
+            // Vider d'abord le sélecteur (sauf l'option par défaut)
+            while (selectElement.options.length > 1) {
+                selectElement.remove(1);
+            }
+
+            // Chercher les pièces correspondant à ce panneau
+            let pieces = [];
+            let siteMatch = false;
+            let panneauMatch = false;
+
+            // Normaliser le site et le panneau pour faciliter les comparaisons
+            const siteNormalized = site.toUpperCase().trim();
+            const panneauNormalized = panneau.toUpperCase().trim();
+
+            console.log(`Recherche de pièces pour ${siteNormalized} - ${panneauNormalized}`);
+
+            // Parcourir toutes les clés dans entretoisesParPanneaux
+            for (const key in entretoisesParPanneaux) {
+                // Décomposer la clé en site et panneau
+                const [keySite, keyPanneau] = key.split('|').map(part => part.toUpperCase().trim());
+
+                console.log(`Examen de la clé: ${key} (${keySite} | ${keyPanneau})`);
+
+                // Vérifier la correspondance du site
+                if (keySite === siteNormalized || keySite.includes(siteNormalized) || siteNormalized.includes(keySite)) {
+                    siteMatch = true;
+                    console.log(`  Site correspondant: ${keySite}`);
+
+                    // Cas spécial pour AVIGNON G1, G2, etc.
+                    if (siteNormalized === "AVIGNON") {
+                        // Extraire le numéro de panneau (G1, G2, etc.) du panneau actuel
+                        const panneauCodeMatch = panneauNormalized.match(/G\d+/i);
+                        const keyPanneauCodeMatch = keyPanneau.match(/G\d+/i);
+
+                        if (panneauCodeMatch && keyPanneauCodeMatch) {
+                            if (panneauCodeMatch[0].toUpperCase() === keyPanneauCodeMatch[0].toUpperCase()) {
+                                console.log(`  Correspondance spéciale AVIGNON: ${panneauCodeMatch[0]} === ${keyPanneauCodeMatch[0]}`);
+                                pieces = entretoisesParPanneaux[key];
+                                panneauMatch = true;
+                                break;
+                            }
+                        }
+                    }
+                    // Cas général
+                    else if (keyPanneau === panneauNormalized || keyPanneau.includes(panneauNormalized) || panneauNormalized.includes(keyPanneau)) {
+                        console.log(`  Panneau correspondant: ${keyPanneau}`);
+                        pieces = entretoisesParPanneaux[key];
+                        panneauMatch = true;
+                        break;
+                    }
+                }
+            }
+
+            // Si aucune correspondance exacte n'est trouvée, recherche plus large
+            if (pieces.length === 0) {
+                console.log("Aucune correspondance exacte, recherche plus large...");
+
+                // Chercher des correspondances partielles pour les panneaux AVIGNON G1, G2, etc.
+                if (siteNormalized === "AVIGNON" && panneauNormalized.match(/G\d+/i)) {
+                    const panneauCode = panneauNormalized.match(/G\d+/i)[0].toUpperCase();
+                    console.log(`Recherche spéciale pour AVIGNON ${panneauCode}`);
+
+                    for (const key in entretoisesParPanneaux) {
+                        const keyUpper = key.toUpperCase();
+                        if (keyUpper.includes("AVIGNON") && keyUpper.includes(panneauCode)) {
+                            console.log(`Trouvé correspondance: ${key}`);
+                            pieces = entretoisesParPanneaux[key];
+                            break;
+                        }
+                    }
+                }
+                // Autres cas spéciaux pour d'autres sites si nécessaire
+                // ...
+            }
+
+            // Si toujours aucune pièce trouvée, recherche par mot-clé dans toutes les clés
+            if (pieces.length === 0 && siteMatch) {
+                console.log("Recherche par mot-clé...");
+
+                // Extraire des mots-clés potentiels du nom du panneau
+                let keywords = panneauNormalized.split(/\s+/);
+                keywords = keywords.filter(word => word.length > 1); // Ignorer les mots trop courts
+
+                console.log(`Mots-clés: ${keywords.join(', ')}`);
+
+                for (const key in entretoisesParPanneaux) {
+                    const keyUpper = key.toUpperCase();
+
+                    if (keyUpper.includes(siteNormalized)) {
+                        // Vérifier si l'un des mots-clés est présent dans la clé
+                        for (const keyword of keywords) {
+                            if (keyUpper.includes(keyword)) {
+                                console.log(`Trouvé mot-clé ${keyword} dans ${key}`);
+                                pieces = entretoisesParPanneaux[key];
+                                break;
+                            }
+                        }
+
+                        if (pieces.length > 0) break;
+                    }
+                }
+            }
+
+            // Si aucune pièce n'est toujours pas trouvée, utiliser un dernier recours
+            if (pieces.length === 0) {
+                console.log("Aucune pièce trouvée avec les méthodes précédentes, recherche large...");
+
+                // Pour le dernier recours, trouver n'importe quelle entrée contenant le site
+                for (const key in entretoisesParPanneaux) {
+                    if (key.toUpperCase().includes(siteNormalized)) {
+                        console.log(`Dernier recours: utilisation de ${key}`);
+                        pieces = entretoisesParPanneaux[key];
+                        break;
+                    }
+                }
+            }
+
+            console.log(`Nombre total de pièces trouvées: ${pieces.length}`);
+
+            // Trier les pièces par nom
+            pieces.sort((a, b) => (a.nom || '').localeCompare(b.nom || ''));
+
+            // Ajouter chaque pièce comme option
+            pieces.forEach(piece => {
+                const option = document.createElement('option');
+                option.value = piece.nom || '';
+
+                // Créer un affichage informatif avec repère et quantité
+                let affichage = piece.nom || '';
+                if (piece.repere && piece.repere !== '-') {
+                    affichage = `${piece.repere} - ${affichage}`;
+                }
+                if (piece.quantite && piece.quantite > 0) {
+                    affichage += ` (Qté fichier: ${piece.quantite})`;
+                }
+
+                option.textContent = affichage;
+                option.dataset.defaultQuantity = piece.quantite || 1;  // Quantité du fichier
+                option.dataset.repere = piece.repere || '';
+                selectElement.appendChild(option);
+                console.log(`Option ajoutée: ${affichage}, quantité par défaut: ${piece.quantite || 1}`);
+            });
+
+            // Mettre à jour le texte d'information
+            try {
+                updateEntretoiseInfo();
+            } catch (error) {
+                console.warn("Erreur lors de la mise à jour des informations d'entretoises:", error);
+            }
+
+            // Si aucune pièce trouvée, afficher un message
+            if (pieces.length === 0) {
+                const option = document.createElement('option');
+                option.value = "";
+                option.textContent = "Aucune pièce trouvée pour ce panneau";
+                option.disabled = true;
+                selectElement.appendChild(option);
+                console.log("Aucune pièce trouvée, message affiché");
+            }
+        }
+
+// Fonction pour ajouter une entretoise à la liste
+        function addEntretoise() {
+            const entretoiseSelect = getElement('entretoise-select');
+            if (!entretoiseSelect) return;
+
+            const selectedIndex = entretoiseSelect.selectedIndex;
+            if (selectedIndex < 1) { // L'index 0 est l'option "Sélectionnez une pièce..."
+                alert("Veuillez sélectionner une pièce.");
+                return;
+            }
+
+            const selectedOption = entretoiseSelect.options[selectedIndex];
+            const selectedEntretoise = selectedOption.value;
+
+            // Récupérer la quantité par défaut du fichier Excel (colonne QTE)
+            const defaultQuantity = selectedOption.dataset.defaultQuantity
+                ? parseInt(selectedOption.dataset.defaultQuantity)
+                : 1;
+
+            // Extraire le repère de l'option
+            const repere = selectedOption.dataset.repere || "";
+
+            // Quantité indiquée par l'utilisateur (combien de fois cette pièce est sélectionnée)
+            const entretoiseQuantityInput = getElement('entretoise-quantity');
+            const userSelectedQuantity = entretoiseQuantityInput
+                ? (parseInt(entretoiseQuantityInput.value) || 1)
+                : 1;
+
+            // Mettre à jour le champ de quantité avec la valeur saisie par l'utilisateur
+            if (entretoiseQuantityInput) {
+                entretoiseQuantityInput.value = userSelectedQuantity;
+            }
+
+            // Vérifier si cette entretoise est déjà dans la liste
+            const existingIndex = selectedEntretoises.findIndex(e => e.description === selectedEntretoise);
+
+            if (existingIndex !== -1) {
+                // Mettre à jour la quantité si l'entretoise existe déjà
+                selectedEntretoises[existingIndex].userSelectedQuantity = userSelectedQuantity;
+                console.log(`Quantité mise à jour pour ${selectedEntretoise}: utilisateur: ${userSelectedQuantity}, fichier: ${defaultQuantity}`);
+            } else {
+                // Ajouter la nouvelle entretoise
+                const entretoise = {
+                    description: selectedEntretoise,
+                    repere: repere,
+                    defaultQuantity: defaultQuantity,  // Quantité du fichier (QTE)
+                    userSelectedQuantity: userSelectedQuantity,  // Quantité sélectionnée par l'utilisateur
+                    id: 'entretoise-' + Date.now()
+                };
+
+                selectedEntretoises.push(entretoise);
+                console.log(`Nouvelle entretoise ajoutée: ${selectedEntretoise}, utilisateur: ${userSelectedQuantity}, fichier: ${defaultQuantity}`);
+            }
+
+            // Afficher un message de confirmation
+            alert(`Pièce "${selectedEntretoise}" ajoutée ${userSelectedQuantity} fois. (Quantité par panneau dans le fichier: ${defaultQuantity})`);
+
+            // Mettre à jour le texte d'information
+            updateEntretoiseInfo();
+        }
+
+// Fonction pour ajouter une entretoise à la liste
+        function addEntretoise() {
+            const entretoiseSelect = getElement('entretoise-select');
+            if (!entretoiseSelect) return;
+
+            const selectedIndex = entretoiseSelect.selectedIndex;
+            if (selectedIndex < 1) { // L'index 0 est l'option "Sélectionnez une pièce..."
+                alert("Veuillez sélectionner une pièce.");
+                return;
+            }
+
+            const selectedOption = entretoiseSelect.options[selectedIndex];
+            const selectedEntretoise = selectedOption.value;
+
+            // Déterminer la quantité par défaut à partir de l'option sélectionnée
+            const defaultQuantity = selectedOption.dataset.defaultQuantity
+                ? parseInt(selectedOption.dataset.defaultQuantity)
+                : 1;
+
+            // Extraire le repère si présent dans le texte de l'option
+            let repere = "";
+            const optionText = selectedOption.textContent || "";
+            const repereMatch = optionText.match(/^([A-Z0-9]+)\s*-\s*(.+)/i);
+            if (repereMatch && repereMatch[1]) {
+                repere = repereMatch[1].trim();
+            } else {
+                // Utiliser le dataset si disponible
+                repere = selectedOption.dataset.repere || "";
+            }
+
+            // Utiliser la quantité par défaut ou celle saisie par l'utilisateur
+            const entretoiseQuantityInput = getElement('entretoise-quantity');
+            const entretoiseQuantity = entretoiseQuantityInput
+                ? (parseInt(entretoiseQuantityInput.value) || defaultQuantity)
+                : defaultQuantity;
+
+            // Mettre à jour le champ de quantité avec la valeur par défaut
+            if (entretoiseQuantityInput) {
+                entretoiseQuantityInput.value = entretoiseQuantity;
+            }
+
+            // Vérifier si cette entretoise est déjà dans la liste
+            const existingIndex = selectedEntretoises.findIndex(e => e.description === selectedEntretoise);
+
+            if (existingIndex !== -1) {
+                // Mettre à jour la quantité si l'entretoise existe déjà
+                selectedEntretoises[existingIndex].quantityPerPanneau = entretoiseQuantity;
+                console.log(`Quantité mise à jour pour ${selectedEntretoise}: ${entretoiseQuantity} par panneau`);
+            } else {
+                // Ajouter la nouvelle entretoise
+                const entretoise = {
+                    description: selectedEntretoise,
+                    repere: repere,
+                    quantityPerPanneau: entretoiseQuantity,  // Quantité par panneau
+                    id: 'entretoise-' + Date.now()
+                };
+
+                selectedEntretoises.push(entretoise);
+                console.log(`Nouvelle entretoise ajoutée: ${selectedEntretoise}, quantité: ${entretoiseQuantity} par panneau`);
+            }
+
+            // Afficher un message de confirmation
+            alert(`Pièce "${selectedEntretoise}" ajoutée avec une quantité de ${entretoiseQuantity} par panneau.`);
+
+            // Mettre à jour le texte d'information
+            updateEntretoiseInfo();
         }
 
 // Fonction pour valider les options de transport pour un site
@@ -1246,6 +2049,72 @@
             updateResultsTable();
         }
 
+        // Fonction pour ajouter les entretoises sélectionnées aux résultats
+        function addEntretoisesToResults(site, panneau, panneauQuantity) {
+            // Pour chaque entretoise sélectionnée
+            selectedEntretoises.forEach(entretoise => {
+                // Calculer la quantité totale d'entretoises:
+                // (Quantité dans le fichier × Nombre de panneaux × Nombre de fois sélectionné par l'utilisateur)
+                const defaultQuantity = entretoise.defaultQuantity || 1;  // Quantité par panneau du fichier
+                const userSelectedQuantity = entretoise.userSelectedQuantity || 1;  // Combien de fois l'utilisateur l'a sélectionnée
+
+                const totalEntretoiseQuantity = defaultQuantity * panneauQuantity * userSelectedQuantity;
+
+                console.log(`Calcul quantité pour ${entretoise.description}:`);
+                console.log(`  Quantité du fichier: ${defaultQuantity}`);
+                console.log(`  Quantité de panneaux: ${panneauQuantity}`);
+                console.log(`  Sélectionné par l'utilisateur: ${userSelectedQuantity} fois`);
+                console.log(`  Total: ${defaultQuantity} × ${panneauQuantity} × ${userSelectedQuantity} = ${totalEntretoiseQuantity}`);
+
+                // Analyser la description pour extraire le repère si possible
+                let repere = entretoise.repere || "";
+
+                // Trouver le prix de cette entretoise dans les données
+                let totalAmount = 0;
+
+                // Récupérer les items pour le site sélectionné
+                let allItems = [];
+
+                // Cas spécial pour "BEAUCHASTEL / LOGIS - NEUF"
+                if (site === "BEAUCHASTEL / LOGIS - NEUF") {
+                    const itemsBeauchastel = allItemsBySite["BEAUCHASTEL"] || [];
+                    const itemsLogisNeuf = allItemsBySite["LOGIS-NEUF"] || [];
+                    allItems = [...itemsBeauchastel, ...itemsLogisNeuf];
+                } else {
+                    allItems = allItemsBySite[site] || [];
+                }
+
+                // Filtrer les items par description d'entretoise
+                const filteredItems = allItems.filter(item =>
+                    item.description === entretoise.description ||
+                    (repere && item.description && item.description.includes(repere))
+                );
+
+                if (filteredItems.length > 0) {
+                    filteredItems.forEach(item => {
+                        totalAmount += parseFloat(item.sousTotal) || 0;
+                    });
+                }
+
+                // Générer un ID unique pour l'entretoise
+                const entretoiseEntryId = 'entretoise-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+
+                // Ajouter l'entretoise au tableau cumulé
+                window.cumulativeResults.push({
+                    id: entretoiseEntryId,
+                    site: site,
+                    description: entretoise.description,
+                    repere: repere,
+                    quantity: totalEntretoiseQuantity,  // Quantité totale calculée correctement
+                    totalPrice: totalAmount * userSelectedQuantity,  // Prix unitaire × nombre de fois sélectionné
+                    isEntretoise: true,
+                    linkedPanneau: panneau
+                });
+
+                console.log(`Entretoise ajoutée: ${repere} - ${entretoise.description}, quantité totale: ${totalEntretoiseQuantity}`);
+            });
+        }
+
 
 
         // Fonction pour masquer les fichiers Excel
@@ -1298,6 +2167,10 @@
             // Initialiser le tableau de résultats si nécessaire
             if (!window.cumulativeResults) {
                 window.cumulativeResults = [];
+            }
+
+            if (shouldShowEntretoiseSelection() && selectedEntretoises.length > 0) {
+                addEntretoisesToResults(selectedSite, selectedRepere, quantity);
             }
 
             // Supprimer le code qui ajoutait automatiquement la ligne d'options de transport
@@ -2489,7 +3362,6 @@
             return prixTotalMontage;
         }
 
-
 // Fonction pour mettre à jour l'affichage du tableau de résultats
         function updateResultsTable() {
             const resultDiv = document.getElementById('site-result');
@@ -2504,7 +3376,7 @@
             let totalQuantity = 0;
             for (const result of window.cumulativeResults) {
                 // Ne compter que les lignes qui ne sont pas des transports et qui ont une quantité
-                if (!result.isTransportOnly && result.quantity) {
+                if (!result.isTransportOnly && !result.isEntretoise && result.quantity) {
                     totalQuantity += parseInt(result.quantity, 10);
                 }
             }
@@ -2533,7 +3405,7 @@
         </div>
     `;
 
-            // Préparation du tableau récapitulatif
+            // Préparation du tableau récapitulatif avec une colonne pour les entretoises
             let finalResultsHtml = `
         <div class="result-title">Récapitulatif total</div>
         ${totalInfoHtml}
@@ -2542,9 +3414,10 @@
                 <th>Site</th>
                 <th>Repère de panneaux</th>
                 <th>Quantité</th>
+                <th>Pièce associée</th>
                 <th>Transport Barreaux</th>
                 <th>Transport Panneaux</th>
-                <th>Autres</th>
+                <th>Emballage</th>
                 <th>Action</th>
             </tr>
     `;
@@ -2560,40 +3433,60 @@
                     }
 
                     finalResultsHtml += `
-<tr id="row-${result.id}" style="background-color: #f0f8ff;">
-    <td>${escapeHtml(result.site)}</td>
-    <td colspan="2" style="text-align: center; font-style: italic;">Options</td>
-    <td>
-        <div>Barreaux: ${result.transportBarreaux}</div>
-        <div>Manutention: ${manutentionDisplay}</div>
-        <div>Grutage: ${result.dechargement || 'non'}</div>
-    </td>
-    <td>
-        <div>Panneaux: ${result.transportPanneaux}</div>
-        <div>Manutention: ${result.manutentionPanneaux || 'non'}</div>
-        <div>Grutage: ${result.grutagePanneaux || 'non'}</div>
-    </td>
-    <td>
-        <div>Emballage: ${result.emballage || 'non'}</div>
-        <div>Entretoises CNR: ${result.entretoisesParCNR || 'non'}</div>
-        ${result.entretoisesParCNR === 'oui' ? `<div>Type: ${result.entretoisesType || 'partiel'}</div>` : ''}
-    </td>
-    <td>
-        <button class="delete-row-btn" data-id="${result.id}"
-                style="background-color: #f44336; color: white; border: none;
-                       padding: 5px 10px; border-radius: 3px; cursor: pointer;">
-            Supprimer
-        </button>
-    </td>
-</tr>
-`;
+                <tr id="row-${result.id}" style="background-color: #f0f8ff;">
+                    <td>${escapeHtml(result.site)}</td>
+                    <td colspan="2" style="text-align: center; font-style: italic;">Options</td>
+                    <td></td>
+                    <td>
+                        <div>Barreaux: ${result.transportBarreaux}</div>
+                        <div>Manutention: ${manutentionDisplay}</div>
+                        <div>Grutage: ${result.dechargement || 'non'}</div>
+                    </td>
+                    <td>
+                        <div>Panneaux: ${result.transportPanneaux}</div>
+                        <div>Manutention: ${result.manutentionPanneaux || 'non'}</div>
+                        <div>Grutage: ${result.grutagePanneaux || 'non'}</div>
+                    </td>
+                    <td>
+                        <div>${result.emballage || 'non'}</div>
+                        <div>Entretoises CNR: ${result.entretoisesParCNR || 'non'}</div>
+                        ${result.entretoisesParCNR === 'oui' ? `<div>Type: ${result.entretoisesType || 'partiel'}</div>` : ''}
+                    </td>
+                    <td>
+                        <button class="delete-row-btn" data-id="${result.id}"
+                                style="background-color: #f44336; color: white; border: none;
+                                       padding: 5px 10px; border-radius: 3px; cursor: pointer;">
+                            Supprimer
+                        </button>
+                    </td>
+                </tr>
+            `;
+                } else if (result.isEntretoise) {
+                    // Pour les entrées qui sont des pièces/entretoises
+                    finalResultsHtml += `
+                <tr id="row-${result.id}" style="background-color: #f5f5f5;">
+                    <td>${escapeHtml(result.site)}</td>
+                    <td>${escapeHtml(result.repere || '')}</td>
+                    <td>${result.quantity || ''}</td>
+                    <td><strong>${escapeHtml(result.description || '')}</strong></td>
+                    <td colspan="3"></td>
+                    <td>
+                        <button class="delete-row-btn" data-id="${result.id}"
+                                style="background-color: #f44336; color: white; border: none;
+                                       padding: 5px 10px; border-radius: 3px; cursor: pointer;">
+                            Supprimer
+                        </button>
+                    </td>
+                </tr>
+            `;
                 } else {
-                    // Pour les entrées normales (produits)
+                    // Pour les entrées normales (produits/panneaux)
                     finalResultsHtml += `
                 <tr id="row-${result.id}">
                     <td>${escapeHtml(result.site)}</td>
                     <td>${escapeHtml(result.description || '')}</td>
                     <td>${result.quantity || ''}</td>
+                    <td></td>
                     <td></td>
                     <td></td>
                     <td></td>
@@ -2623,6 +3516,7 @@
 
             // Ajouter événements pour les boutons
             setupResultButtonEvents();
+
 
             // Calculer le prix total (tous les calculs sont gérés dans cette fonction)
             try {
@@ -2916,6 +3810,39 @@
                 // Masquer les options dépendantes
                 document.getElementById('manutention-panneaux-container').style.display = "none";
                 document.getElementById('grutage-panneaux-container').style.display = "none";
+            });
+
+            const selectedRepere = document.getElementById('repere-select').value;
+            if (selectedRepere && shouldShowEntretoiseSelection()) {
+                document.getElementById('entretoises-selection').style.display = 'block';
+                populateEntretoiseSelect(document.getElementById('site-select').value, selectedRepere);
+            } else {
+                document.getElementById('entretoises-selection').style.display = 'none';
+            }
+
+
+// Gestionnaire pour le bouton d'ajout d'entretoise
+            const addEntretoiseBtn = document.getElementById('add-entretoise-button');
+            if (addEntretoiseBtn) {
+                addEntretoiseBtn.addEventListener('click', function() {
+                    addEntretoise();
+                });
+            }
+
+// Gestionnaire pour le changement de quantité de panneaux
+            document.getElementById('quantity-input').addEventListener('change', function() {
+                // Mettre à jour uniquement le texte d'information si des entretoises sont sélectionnées
+                if (selectedEntretoises.length > 0) {
+                    updateEntretoiseInfo();
+                }
+            });
+
+// Gestionnaire pour le changement de quantité d'entretoises
+            document.getElementById('entretoise-quantity').addEventListener('change', function() {
+                const value = parseInt(this.value);
+                if (isNaN(value) || value < 1) {
+                    this.value = 1;
+                }
             });
 
 
@@ -3290,8 +4217,7 @@
                 panneauxParSite: panneauxParSite
             };
         }
-
-        // Récupérer les données Excel via AJAX
+// Récupérer les données Excel via AJAX
         fetch('get_excel_data.php')
             .then(response => {
                 if (!response.ok) {
@@ -3300,37 +4226,75 @@
                 return response.json();
             })
             .then(response => {
-                document.getElementById('loading').style.display = 'none';
+                if (getElement('loading')) {
+                    getElement('loading').style.display = 'none';
+                }
 
                 // Stocker les données pour la recherche
                 filesDataGlobal = response;
 
+                try {
+                    // Extraire les correspondances entretoises-panneaux
+                    entretoisesParPanneaux = extractEntretoisesMapping(response);
+                } catch (error) {
+                    console.error("Erreur lors de l'extraction des entretoises:", error);
+                    entretoisesParPanneaux = {};
+                }
+
                 // Extraire les sites et leurs items associés
-                const siteData = extractSiteData(response);
-                allSites = siteData.sites;
-                allItemsBySite = siteData.itemsBySite;
+                try {
+                    const siteData = extractSiteData(response);
+                    allSites = siteData.sites;
+                    allItemsBySite = siteData.itemsBySite;
+                } catch (error) {
+                    console.error("Erreur lors de l'extraction des données des sites:", error);
+                }
 
                 // Remplir le sélecteur de sites
-                populateSiteSelect(allSites);
+                try {
+                    populateSiteSelect(allSites);
+                } catch (error) {
+                    console.error("Erreur lors du remplissage du sélecteur de sites:", error);
+                }
 
-                // Rendre les données Excel (nous les gardons pour la fonctionnalité)
-                document.getElementById('excel-data').innerHTML = renderExcelFiles(response);
+                // Rendre les données Excel
+                try {
+                    if (getElement('excel-data')) {
+                        getElement('excel-data').innerHTML = renderExcelFiles(response);
+                    }
+                } catch (error) {
+                    console.error("Erreur lors du rendu des données Excel:", error);
+                }
 
                 // Configuration des gestionnaires d'événements après le rendu
-                setupEventHandlers();
+                try {
+                    setupEventHandlers();
+                } catch (error) {
+                    console.error("Erreur lors de la configuration des gestionnaires d'événements:", error);
+                }
 
                 // Masquer les données Excel
-                hideExcelData();
+                try {
+                    hideExcelData();
+                } catch (error) {
+                    console.error("Erreur lors du masquage des données Excel:", error);
+                }
             })
             .catch(error => {
-                document.getElementById('loading').style.display = 'none';
+                console.error("Erreur lors du chargement des données Excel:", error);
 
-                const errorDiv = document.createElement('div');
-                errorDiv.className = 'error';
-                errorDiv.style.display = 'block';
-                errorDiv.textContent = 'Erreur: ' + error.message;
+                if (getElement('loading')) {
+                    getElement('loading').style.display = 'none';
+                }
 
-                document.getElementById('excel-data').appendChild(errorDiv);
+                const excelDataDiv = getElement('excel-data');
+                if (excelDataDiv) {
+                    const errorDiv = document.createElement('div');
+                    errorDiv.className = 'error';
+                    errorDiv.style.display = 'block';
+                    errorDiv.textContent = 'Erreur: ' + error.message;
+                    excelDataDiv.appendChild(errorDiv);
+                }
             });
     });
 </script>
