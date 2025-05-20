@@ -1403,7 +1403,7 @@
             // Liste des sites connus
             const knownSites = [
                 "DTHR", "DTRS", "DTRI", "DTRM",
-                "SEYSSEL", "CHAUTAGNE", "BELLEY", "BREGNIER-CORDON", "SAULT-BRENAZ",
+                "SEYSSEL", "CHAUTAGNE_BELLEY_BREGNIER-CORDON", "CHAUTAGNE", "BELLEY", "BREGNIER-CORDON", "SAULT-BRENAZ",
                 "PIERRE-BENITE", "VAUGRIS", "PEAGE DE ROUSSILLON", "SAINT VALLIER", "ST VALLIER",
                 "BOURG-LES-VALENCE", "BEAUCHASTEL", "LOGIS-NEUF",
                 "MONTELIMAR", "DONZERE MONDRAGON",
@@ -1419,6 +1419,11 @@
                 }
             }
 
+            // Si site est CHAUTAGNE, BELLEY ou BREGNIER-CORDON, le convertir en site combiné
+            if (site === "CHAUTAGNE" || site === "BELLEY" || site === "BREGNIER-CORDON") {
+                site = "CHAUTAGNE_BELLEY_BREGNIER-CORDON";
+            }
+
             // Si aucun site n'est trouvé explicitement
             if (!site) {
                 // Pour les panneaux comme "PANNEAU INF BELLEY", extraire le site à la fin
@@ -1429,6 +1434,12 @@
                     for (const knownSite of knownSites) {
                         if (potentialSite.includes(knownSite) || knownSite.includes(potentialSite)) {
                             site = knownSite;
+
+                            // Si site est CHAUTAGNE, BELLEY ou BREGNIER-CORDON, le convertir en site combiné
+                            if (site === "CHAUTAGNE" || site === "BELLEY" || site === "BREGNIER-CORDON") {
+                                site = "CHAUTAGNE_BELLEY_BREGNIER-CORDON";
+                            }
+
                             break;
                         }
                     }
@@ -1444,6 +1455,12 @@
                     for (const knownSite of knownSites) {
                         if (potentialSite.includes(knownSite) || knownSite.includes(potentialSite)) {
                             site = knownSite;
+
+                            // Si site est CHAUTAGNE, BELLEY ou BREGNIER-CORDON, le convertir en site combiné
+                            if (site === "CHAUTAGNE" || site === "BELLEY" || site === "BREGNIER-CORDON") {
+                                site = "CHAUTAGNE_BELLEY_BREGNIER-CORDON";
+                            }
+
                             break;
                         }
                     }
@@ -1457,7 +1474,7 @@
             }
 
             // Extraire le panneau
-            let panneau = nom.replace(new RegExp(site, 'i'), '').trim();
+            let panneau = nom.replace(new RegExp(site.replace("_", ".*"), 'i'), '').trim();
 
             // Si le panneau est vide ou ne contient qu'un espace, utiliser le nom complet
             if (!panneau || panneau === '') {
@@ -1688,7 +1705,21 @@
             const siteNormalized = site.toUpperCase().trim();
             const panneauNormalized = panneau.toUpperCase().trim();
 
-            console.log(`Recherche de pièces pour ${siteNormalized} - ${panneauNormalized}`);
+            // Détecter s'il s'agit d'un panneau inférieur ou supérieur
+            const isPanneauInferieur = panneauNormalized.includes('INF') || panneauNormalized.includes('INFERIEUR');
+            const isPanneauSuperieur = panneauNormalized.includes('SUP') || panneauNormalized.includes('SUPERIEUR');
+
+            console.log(`Type de panneau: ${isPanneauInferieur ? 'Inférieur' : (isPanneauSuperieur ? 'Supérieur' : 'Non spécifié')}`);
+
+            // Gestion du site combiné
+            let searchSites = [siteNormalized];
+            if (siteNormalized === "CHAUTAGNE_BELLEY_BREGNIER-CORDON") {
+                searchSites = ["CHAUTAGNE", "BELLEY", "BREGNIER-CORDON", "CHAUTAGNE_BELLEY_BREGNIER-CORDON"];
+            } else if (siteNormalized === "CHAUTAGNE" || siteNormalized === "BELLEY" || siteNormalized === "BREGNIER-CORDON") {
+                searchSites = ["CHAUTAGNE", "BELLEY", "BREGNIER-CORDON", "CHAUTAGNE_BELLEY_BREGNIER-CORDON"];
+            }
+
+            console.log(`Recherche de pièces pour ${searchSites.join(", ")} - ${panneauNormalized}`);
 
             // Parcourir toutes les clés dans entretoisesParPanneaux
             for (const key in entretoisesParPanneaux) {
@@ -1697,10 +1728,33 @@
 
                 console.log(`Examen de la clé: ${key} (${keySite} | ${keyPanneau})`);
 
-                // Vérifier la correspondance du site
-                if (keySite === siteNormalized || keySite.includes(siteNormalized) || siteNormalized.includes(keySite)) {
+                // Vérifier la correspondance du site avec l'un des sites de recherche
+                const sitesMatch = searchSites.some(searchSite =>
+                    keySite === searchSite || keySite.includes(searchSite) || searchSite.includes(keySite)
+                );
+
+                if (sitesMatch) {
                     siteMatch = true;
                     console.log(`  Site correspondant: ${keySite}`);
+
+                    // Pour Chautagne_Belley_Bregnier-Cordon, vérifier aussi le type de panneau (inf/sup)
+                    if ((siteNormalized === "CHAUTAGNE_BELLEY_BREGNIER-CORDON" ||
+                            siteNormalized === "CHAUTAGNE" ||
+                            siteNormalized === "BELLEY" ||
+                            siteNormalized === "BREGNIER-CORDON") &&
+                        (isPanneauInferieur || isPanneauSuperieur)) {
+
+                        const isKeyPanneauInferieur = keyPanneau.includes('INF') || keyPanneau.includes('INFERIEUR');
+                        const isKeyPanneauSuperieur = keyPanneau.includes('SUP') || keyPanneau.includes('SUPERIEUR');
+
+                        // Vérifier si le type de panneau correspond
+                        if ((isPanneauInferieur && !isKeyPanneauInferieur) ||
+                            (isPanneauSuperieur && !isKeyPanneauSuperieur)) {
+                            // Types de panneaux différents, passer à la clé suivante
+                            console.log(`  Type de panneau différent, ignoré`);
+                            continue;
+                        }
+                    }
 
                     // Cas spécial pour AVIGNON G1, G2, etc.
                     if (siteNormalized === "AVIGNON") {
@@ -1745,8 +1799,36 @@
                         }
                     }
                 }
-                // Autres cas spéciaux pour d'autres sites si nécessaire
-                // ...
+                // Cas spécial pour le site combiné
+                else if (searchSites.length > 1) {
+                    for (const key in entretoisesParPanneaux) {
+                        const [keySite, keyPanneau] = key.split('|').map(part => part.toUpperCase().trim());
+                        const sitesMatch = searchSites.some(searchSite =>
+                            keySite === searchSite || keySite.includes(searchSite) || searchSite.includes(keySite)
+                        );
+
+                        if (sitesMatch) {
+                            // Pour Chautagne_Belley_Bregnier-Cordon, vérifier aussi le type de panneau (inf/sup)
+                            if (isPanneauInferieur || isPanneauSuperieur) {
+                                const isKeyPanneauInferieur = keyPanneau.includes('INF') || keyPanneau.includes('INFERIEUR');
+                                const isKeyPanneauSuperieur = keyPanneau.includes('SUP') || keyPanneau.includes('SUPERIEUR');
+
+                                // Vérifier si le type de panneau correspond
+                                if ((isPanneauInferieur && !isKeyPanneauInferieur) ||
+                                    (isPanneauSuperieur && !isKeyPanneauSuperieur)) {
+                                    // Types de panneaux différents, passer à la clé suivante
+                                    continue;
+                                }
+                            }
+
+                            if (keyPanneau.includes(panneauNormalized) || panneauNormalized.includes(keyPanneau)) {
+                                console.log(`Trouvé correspondance pour site combiné: ${key}`);
+                                pieces = entretoisesParPanneaux[key];
+                                break;
+                            }
+                        }
+                    }
+                }
             }
 
             // Si toujours aucune pièce trouvée, recherche par mot-clé dans toutes les clés
@@ -1760,12 +1842,28 @@
                 console.log(`Mots-clés: ${keywords.join(', ')}`);
 
                 for (const key in entretoisesParPanneaux) {
-                    const keyUpper = key.toUpperCase();
+                    const [keySite, keyPanneau] = key.split('|').map(part => part.toUpperCase().trim());
 
-                    if (keyUpper.includes(siteNormalized)) {
+                    // Vérifier si l'un des sites de recherche est présent dans la clé
+                    const sitesMatch = searchSites.some(searchSite => keySite.includes(searchSite));
+
+                    if (sitesMatch) {
+                        // Pour Chautagne_Belley_Bregnier-Cordon, vérifier aussi le type de panneau (inf/sup)
+                        if (isPanneauInferieur || isPanneauSuperieur) {
+                            const isKeyPanneauInferieur = keyPanneau.includes('INF') || keyPanneau.includes('INFERIEUR');
+                            const isKeyPanneauSuperieur = keyPanneau.includes('SUP') || keyPanneau.includes('SUPERIEUR');
+
+                            // Vérifier si le type de panneau correspond
+                            if ((isPanneauInferieur && !isKeyPanneauInferieur) ||
+                                (isPanneauSuperieur && !isKeyPanneauSuperieur)) {
+                                // Types de panneaux différents, passer à la clé suivante
+                                continue;
+                            }
+                        }
+
                         // Vérifier si l'un des mots-clés est présent dans la clé
                         for (const keyword of keywords) {
-                            if (keyUpper.includes(keyword)) {
+                            if (keyPanneau.includes(keyword)) {
                                 console.log(`Trouvé mot-clé ${keyword} dans ${key}`);
                                 pieces = entretoisesParPanneaux[key];
                                 break;
@@ -1781,9 +1879,25 @@
             if (pieces.length === 0) {
                 console.log("Aucune pièce trouvée avec les méthodes précédentes, recherche large...");
 
-                // Pour le dernier recours, trouver n'importe quelle entrée contenant le site
+                // Pour le dernier recours, trouver n'importe quelle entrée contenant l'un des sites
                 for (const key in entretoisesParPanneaux) {
-                    if (key.toUpperCase().includes(siteNormalized)) {
+                    const [keySite, keyPanneau] = key.split('|').map(part => part.toUpperCase().trim());
+                    const sitesMatch = searchSites.some(searchSite => keySite.includes(searchSite));
+
+                    if (sitesMatch) {
+                        // Pour Chautagne_Belley_Bregnier-Cordon, vérifier aussi le type de panneau (inf/sup)
+                        if (isPanneauInferieur || isPanneauSuperieur) {
+                            const isKeyPanneauInferieur = keyPanneau.includes('INF') || keyPanneau.includes('INFERIEUR');
+                            const isKeyPanneauSuperieur = keyPanneau.includes('SUP') || keyPanneau.includes('SUPERIEUR');
+
+                            // Vérifier si le type de panneau correspond
+                            if ((isPanneauInferieur && !isKeyPanneauInferieur) ||
+                                (isPanneauSuperieur && !isKeyPanneauSuperieur)) {
+                                // Types de panneaux différents, passer à la clé suivante
+                                continue;
+                            }
+                        }
+
                         console.log(`Dernier recours: utilisation de ${key}`);
                         pieces = entretoisesParPanneaux[key];
                         break;
@@ -1793,11 +1907,19 @@
 
             console.log(`Nombre total de pièces trouvées: ${pieces.length}`);
 
+            // Filtrer les pièces pour ne garder que celles contenant "entretoise" ou "plaque"
+            const filteredPieces = pieces.filter(piece => {
+                const nomLower = (piece.nom || '').toLowerCase();
+                return nomLower.includes('entretoise') || nomLower.includes('plaque');
+            });
+
+            console.log(`Nombre de pièces après filtrage (entretoises/plaques): ${filteredPieces.length}`);
+
             // Trier les pièces par nom
-            pieces.sort((a, b) => (a.nom || '').localeCompare(b.nom || ''));
+            filteredPieces.sort((a, b) => (a.nom || '').localeCompare(b.nom || ''));
 
             // Ajouter chaque pièce comme option
-            pieces.forEach(piece => {
+            filteredPieces.forEach(piece => {
                 const option = document.createElement('option');
                 option.value = piece.nom || '';
 
@@ -1825,10 +1947,10 @@
             }
 
             // Si aucune pièce trouvée, afficher un message
-            if (pieces.length === 0) {
+            if (filteredPieces.length === 0) {
                 const option = document.createElement('option');
                 option.value = "";
-                option.textContent = "Aucune pièce trouvée pour ce panneau";
+                option.textContent = "Aucune entretoise ou plaque trouvée pour ce panneau";
                 option.disabled = true;
                 selectElement.appendChild(option);
                 console.log("Aucune pièce trouvée, message affiché");
@@ -3463,12 +3585,13 @@
             `;
                 } else if (result.isEntretoise) {
                     // Pour les entrées qui sont des pièces/entretoises
+                    // Modification : supprimé le repère de la colonne "Repère de panneaux" et enlevé le gras de la description
                     finalResultsHtml += `
                 <tr id="row-${result.id}" style="background-color: #f5f5f5;">
                     <td>${escapeHtml(result.site)}</td>
-                    <td>${escapeHtml(result.repere || '')}</td>
+                    <td></td>
                     <td>${result.quantity || ''}</td>
-                    <td><strong>${escapeHtml(result.description || '')}</strong></td>
+                    <td>${escapeHtml(result.description || '')}</td>
                     <td colspan="3"></td>
                     <td>
                         <button class="delete-row-btn" data-id="${result.id}"
@@ -3481,10 +3604,11 @@
             `;
                 } else {
                     // Pour les entrées normales (produits/panneaux)
+                    // Modification : ajouté le gras au nom du panneau
                     finalResultsHtml += `
                 <tr id="row-${result.id}">
                     <td>${escapeHtml(result.site)}</td>
-                    <td>${escapeHtml(result.description || '')}</td>
+                    <td><strong>${escapeHtml(result.description || '')}</strong></td>
                     <td>${result.quantity || ''}</td>
                     <td></td>
                     <td></td>
@@ -3516,7 +3640,6 @@
 
             // Ajouter événements pour les boutons
             setupResultButtonEvents();
-
 
             // Calculer le prix total (tous les calculs sont gérés dans cette fonction)
             try {
@@ -3953,6 +4076,7 @@
          * Exporte les données du tableau récapitulatif vers un fichier Excel
          * @returns {Promise} Une promesse qui est résolue lorsque l'exportation est terminée
          */
+// Fonction pour exporter les données vers Excel
         function exportToExcel() {
             console.log("Début de la fonction exportToExcel");
             return new Promise((resolve, reject) => {
@@ -3971,14 +4095,10 @@
                 // Collecter les informations sur les prix calculés
                 const priceData = collectPriceData();
 
-                // Collecter les informations sur les sites et repères sélectionnés
-                const selectionData = collectSelectionData();
-
                 // Créer l'objet de données à envoyer
                 const exportData = {
                     recap: recapData,
-                    prices: priceData,
-                    selections: selectionData
+                    prices: priceData
                 };
                 console.log("Données préparées:", exportData);
 
@@ -4046,6 +4166,7 @@
          * Prépare les données du tableau récapitulatif pour l'export
          * @returns {Array} Un tableau d'objets contenant les données formatées
          */
+// Fonction pour préparer les données pour l'export Excel
         function prepareRecapDataForExport() {
             if (!window.cumulativeResults) {
                 return [];
@@ -4058,6 +4179,7 @@
                         site: item.site,
                         description: "Options",
                         quantity: "",
+                        pieceAssociee: "",  // Nouvelle colonne ajoutée
                         transportBarreaux: item.transportBarreaux || "non",
                         manutentionBarreaux: item.manutention || "non",
                         manutentionDays: item.manutentionDays || "",
@@ -4068,12 +4190,31 @@
                         emballage: item.emballage || "non"
                     };
                 }
+                // Pour les lignes de pièces
+                else if (item.isEntretoise) {
+                    return {
+                        site: item.site,
+                        description: "",  // Laissez vide pour les pièces
+                        quantity: item.quantity || "",
+                        pieceAssociee: item.description || "",  // Utilisez la description comme pièce associée
+                        transportBarreaux: "",
+                        manutentionBarreaux: "",
+                        manutentionDays: "",
+                        dechargementBarreaux: "",
+                        transportPanneaux: "",
+                        manutentionPanneaux: "",
+                        grutagePanneaux: "",
+                        emballage: "",
+                        totalPrice: item.totalPrice || 0
+                    };
+                }
                 // Pour les lignes de panneaux
                 else {
                     return {
                         site: item.site,
                         description: item.description || "",
                         quantity: item.quantity || "",
+                        pieceAssociee: "",  // Vide pour les panneaux
                         transportBarreaux: "",
                         manutentionBarreaux: "",
                         manutentionDays: "",
