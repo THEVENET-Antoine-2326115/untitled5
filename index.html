@@ -1683,6 +1683,7 @@
         }
 
 // Fonction pour remplir le sélecteur d'entretoises spécifiques
+// Fonction améliorée pour remplir le sélecteur d'entretoises spécifiques
         function populateEntretoiseSelect(site, panneau) {
             console.log(`Remplissage du sélecteur pour site: ${site}, panneau: ${panneau}`);
             const selectElement = getElement('entretoise-select');
@@ -1698,209 +1699,101 @@
 
             // Chercher les pièces correspondant à ce panneau
             let pieces = [];
-            let siteMatch = false;
-            let panneauMatch = false;
 
             // Normaliser le site et le panneau pour faciliter les comparaisons
             const siteNormalized = site.toUpperCase().trim();
             const panneauNormalized = panneau.toUpperCase().trim();
 
-            // Détecter s'il s'agit d'un panneau inférieur ou supérieur
-            const isPanneauInferieur = panneauNormalized.includes('INF') || panneauNormalized.includes('INFERIEUR');
-            const isPanneauSuperieur = panneauNormalized.includes('SUP') || panneauNormalized.includes('SUPERIEUR');
+            console.log(`Site normalisé: ${siteNormalized}, Panneau normalisé: ${panneauNormalized}`);
 
-            console.log(`Type de panneau: ${isPanneauInferieur ? 'Inférieur' : (isPanneauSuperieur ? 'Supérieur' : 'Non spécifié')}`);
+            // Analyse spécifique pour St Vallier
+            if (siteNormalized.includes("SAINT VALLIER") || siteNormalized.includes("ST VALLIER") || siteNormalized.includes("ST-VALLIER")) {
+                // Extraire le code P1, P2, P3, etc. du panneau
+                const panneauCodeMatch = panneauNormalized.match(/P\d+X?/i);
+                const panneauCode = panneauCodeMatch ? panneauCodeMatch[0].toUpperCase() : null;
 
-            // Gestion du site combiné
-            let searchSites = [siteNormalized];
-            if (siteNormalized === "CHAUTAGNE_BELLEY_BREGNIER-CORDON") {
-                searchSites = ["CHAUTAGNE", "BELLEY", "BREGNIER-CORDON", "CHAUTAGNE_BELLEY_BREGNIER-CORDON"];
-            } else if (siteNormalized === "CHAUTAGNE" || siteNormalized === "BELLEY" || siteNormalized === "BREGNIER-CORDON") {
-                searchSites = ["CHAUTAGNE", "BELLEY", "BREGNIER-CORDON", "CHAUTAGNE_BELLEY_BREGNIER-CORDON"];
-            }
+                console.log(`Détecté panneau St Vallier avec code: ${panneauCode}`);
 
-            console.log(`Recherche de pièces pour ${searchSites.join(", ")} - ${panneauNormalized}`);
+                if (panneauCode) {
+                    // Chercher des correspondances directes
+                    for (const key in entretoisesParPanneaux) {
+                        const keyUpper = key.toUpperCase();
 
-            // Parcourir toutes les clés dans entretoisesParPanneaux
-            for (const key in entretoisesParPanneaux) {
-                // Décomposer la clé en site et panneau
-                const [keySite, keyPanneau] = key.split('|').map(part => part.toUpperCase().trim());
-
-                console.log(`Examen de la clé: ${key} (${keySite} | ${keyPanneau})`);
-
-                // Vérifier la correspondance du site avec l'un des sites de recherche
-                const sitesMatch = searchSites.some(searchSite =>
-                    keySite === searchSite || keySite.includes(searchSite) || searchSite.includes(keySite)
-                );
-
-                if (sitesMatch) {
-                    siteMatch = true;
-                    console.log(`  Site correspondant: ${keySite}`);
-
-                    // Pour Chautagne_Belley_Bregnier-Cordon, vérifier aussi le type de panneau (inf/sup)
-                    if ((siteNormalized === "CHAUTAGNE_BELLEY_BREGNIER-CORDON" ||
-                            siteNormalized === "CHAUTAGNE" ||
-                            siteNormalized === "BELLEY" ||
-                            siteNormalized === "BREGNIER-CORDON") &&
-                        (isPanneauInferieur || isPanneauSuperieur)) {
-
-                        const isKeyPanneauInferieur = keyPanneau.includes('INF') || keyPanneau.includes('INFERIEUR');
-                        const isKeyPanneauSuperieur = keyPanneau.includes('SUP') || keyPanneau.includes('SUPERIEUR');
-
-                        // Vérifier si le type de panneau correspond
-                        if ((isPanneauInferieur && !isKeyPanneauInferieur) ||
-                            (isPanneauSuperieur && !isKeyPanneauSuperieur)) {
-                            // Types de panneaux différents, passer à la clé suivante
-                            console.log(`  Type de panneau différent, ignoré`);
-                            continue;
+                        // Vérifie si la clé contient "ST VALLIER" ou "SAINT VALLIER" et le code du panneau
+                        if ((keyUpper.includes("ST VALLIER") || keyUpper.includes("SAINT VALLIER") || keyUpper.includes("ST-VALLIER"))
+                            && keyUpper.includes(panneauCode)) {
+                            console.log(`Trouvé correspondance pour St Vallier ${panneauCode}: ${key}`);
+                            pieces = entretoisesParPanneaux[key];
+                            break;
                         }
                     }
 
-                    // Cas spécial pour AVIGNON G1, G2, etc.
-                    if (siteNormalized === "AVIGNON") {
-                        // Extraire le numéro de panneau (G1, G2, etc.) du panneau actuel
-                        const panneauCodeMatch = panneauNormalized.match(/G\d+/i);
-                        const keyPanneauCodeMatch = keyPanneau.match(/G\d+/i);
+                    // Si aucune correspondance directe, chercher par correspondance partielle
+                    if (pieces.length === 0) {
+                        for (const key in entretoisesParPanneaux) {
+                            const [keySite, keyPanneau] = key.split('|').map(part => part.toUpperCase().trim());
 
-                        if (panneauCodeMatch && keyPanneauCodeMatch) {
-                            if (panneauCodeMatch[0].toUpperCase() === keyPanneauCodeMatch[0].toUpperCase()) {
-                                console.log(`  Correspondance spéciale AVIGNON: ${panneauCodeMatch[0]} === ${keyPanneauCodeMatch[0]}`);
+                            if ((keySite.includes("ST VALLIER") || keySite.includes("SAINT VALLIER") || keySite.includes("ST-VALLIER"))) {
+                                // Pour les panneaux comme P1, P2, etc., essayer de trouver une correspondance
+                                if (keyPanneau.includes(panneauCode)) {
+                                    console.log(`Correspondance partielle pour St Vallier ${panneauCode}: ${key}`);
+                                    pieces = entretoisesParPanneaux[key];
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    // Si toujours aucune correspondance, essayer d'utiliser P6 comme fallback
+                    if (pieces.length === 0 && panneauCode !== "P6" && panneauCode !== "P6X") {
+                        for (const key in entretoisesParPanneaux) {
+                            const keyUpper = key.toUpperCase();
+                            if ((keyUpper.includes("ST VALLIER") || keyUpper.includes("SAINT VALLIER") || keyUpper.includes("ST-VALLIER"))
+                                && (keyUpper.includes("P6") || keyUpper.includes("P6X"))) {
+                                console.log(`Utilisation de P6 comme fallback pour ${panneauCode}: ${key}`);
                                 pieces = entretoisesParPanneaux[key];
-                                panneauMatch = true;
                                 break;
                             }
                         }
                     }
-                    // Cas général
-                    else if (keyPanneau === panneauNormalized || keyPanneau.includes(panneauNormalized) || panneauNormalized.includes(keyPanneau)) {
-                        console.log(`  Panneau correspondant: ${keyPanneau}`);
-                        pieces = entretoisesParPanneaux[key];
-                        panneauMatch = true;
-                        break;
-                    }
                 }
-            }
+            } else {
+                // Comportement existant pour les autres sites
+                // Chercher des correspondances exactes pour la paire site+panneau
+                for (const key in entretoisesParPanneaux) {
+                    const [keySite, keyPanneau] = key.split('|').map(part => part.toUpperCase().trim());
 
-            // Si aucune correspondance exacte n'est trouvée, recherche plus large
-            if (pieces.length === 0) {
-                console.log("Aucune correspondance exacte, recherche plus large...");
-
-                // Chercher des correspondances partielles pour les panneaux AVIGNON G1, G2, etc.
-                if (siteNormalized === "AVIGNON" && panneauNormalized.match(/G\d+/i)) {
-                    const panneauCode = panneauNormalized.match(/G\d+/i)[0].toUpperCase();
-                    console.log(`Recherche spéciale pour AVIGNON ${panneauCode}`);
-
-                    for (const key in entretoisesParPanneaux) {
-                        const keyUpper = key.toUpperCase();
-                        if (keyUpper.includes("AVIGNON") && keyUpper.includes(panneauCode)) {
-                            console.log(`Trouvé correspondance: ${key}`);
+                    if (keySite === siteNormalized || keySite.includes(siteNormalized) || siteNormalized.includes(keySite)) {
+                        if (keyPanneau === panneauNormalized || keyPanneau.includes(panneauNormalized) || panneauNormalized.includes(keyPanneau)) {
+                            console.log(`Trouvé correspondance exacte: ${key}`);
                             pieces = entretoisesParPanneaux[key];
                             break;
                         }
                     }
                 }
-                // Cas spécial pour le site combiné
-                else if (searchSites.length > 1) {
+
+                // Si aucune correspondance exacte, recherche plus large
+                if (pieces.length === 0) {
                     for (const key in entretoisesParPanneaux) {
                         const [keySite, keyPanneau] = key.split('|').map(part => part.toUpperCase().trim());
-                        const sitesMatch = searchSites.some(searchSite =>
-                            keySite === searchSite || keySite.includes(searchSite) || searchSite.includes(keySite)
-                        );
 
-                        if (sitesMatch) {
-                            // Pour Chautagne_Belley_Bregnier-Cordon, vérifier aussi le type de panneau (inf/sup)
-                            if (isPanneauInferieur || isPanneauSuperieur) {
-                                const isKeyPanneauInferieur = keyPanneau.includes('INF') || keyPanneau.includes('INFERIEUR');
-                                const isKeyPanneauSuperieur = keyPanneau.includes('SUP') || keyPanneau.includes('SUPERIEUR');
+                        if (keySite === siteNormalized || keySite.includes(siteNormalized) || siteNormalized.includes(keySite)) {
+                            // Détecter si c'est un panneau inférieur ou supérieur
+                            const isPanneauInferieur = panneauNormalized.includes('INF') || panneauNormalized.includes('INFERIEUR');
+                            const isPanneauSuperieur = panneauNormalized.includes('SUP') || panneauNormalized.includes('SUPERIEUR');
 
-                                // Vérifier si le type de panneau correspond
-                                if ((isPanneauInferieur && !isKeyPanneauInferieur) ||
-                                    (isPanneauSuperieur && !isKeyPanneauSuperieur)) {
-                                    // Types de panneaux différents, passer à la clé suivante
-                                    continue;
-                                }
-                            }
+                            const isKeyPanneauInferieur = keyPanneau.includes('INF') || keyPanneau.includes('INFERIEUR');
+                            const isKeyPanneauSuperieur = keyPanneau.includes('SUP') || keyPanneau.includes('SUPERIEUR');
 
-                            if (keyPanneau.includes(panneauNormalized) || panneauNormalized.includes(keyPanneau)) {
-                                console.log(`Trouvé correspondance pour site combiné: ${key}`);
+                            // Correspondance de type (inf/sup)
+                            if ((isPanneauInferieur && isKeyPanneauInferieur) ||
+                                (isPanneauSuperieur && isKeyPanneauSuperieur) ||
+                                (!isPanneauInferieur && !isPanneauSuperieur && !isKeyPanneauInferieur && !isKeyPanneauSuperieur)) {
+                                console.log(`Trouvé correspondance par type: ${key}`);
                                 pieces = entretoisesParPanneaux[key];
                                 break;
                             }
                         }
-                    }
-                }
-            }
-
-            // Si toujours aucune pièce trouvée, recherche par mot-clé dans toutes les clés
-            if (pieces.length === 0 && siteMatch) {
-                console.log("Recherche par mot-clé...");
-
-                // Extraire des mots-clés potentiels du nom du panneau
-                let keywords = panneauNormalized.split(/\s+/);
-                keywords = keywords.filter(word => word.length > 1); // Ignorer les mots trop courts
-
-                console.log(`Mots-clés: ${keywords.join(', ')}`);
-
-                for (const key in entretoisesParPanneaux) {
-                    const [keySite, keyPanneau] = key.split('|').map(part => part.toUpperCase().trim());
-
-                    // Vérifier si l'un des sites de recherche est présent dans la clé
-                    const sitesMatch = searchSites.some(searchSite => keySite.includes(searchSite));
-
-                    if (sitesMatch) {
-                        // Pour Chautagne_Belley_Bregnier-Cordon, vérifier aussi le type de panneau (inf/sup)
-                        if (isPanneauInferieur || isPanneauSuperieur) {
-                            const isKeyPanneauInferieur = keyPanneau.includes('INF') || keyPanneau.includes('INFERIEUR');
-                            const isKeyPanneauSuperieur = keyPanneau.includes('SUP') || keyPanneau.includes('SUPERIEUR');
-
-                            // Vérifier si le type de panneau correspond
-                            if ((isPanneauInferieur && !isKeyPanneauInferieur) ||
-                                (isPanneauSuperieur && !isKeyPanneauSuperieur)) {
-                                // Types de panneaux différents, passer à la clé suivante
-                                continue;
-                            }
-                        }
-
-                        // Vérifier si l'un des mots-clés est présent dans la clé
-                        for (const keyword of keywords) {
-                            if (keyPanneau.includes(keyword)) {
-                                console.log(`Trouvé mot-clé ${keyword} dans ${key}`);
-                                pieces = entretoisesParPanneaux[key];
-                                break;
-                            }
-                        }
-
-                        if (pieces.length > 0) break;
-                    }
-                }
-            }
-
-            // Si aucune pièce n'est toujours pas trouvée, utiliser un dernier recours
-            if (pieces.length === 0) {
-                console.log("Aucune pièce trouvée avec les méthodes précédentes, recherche large...");
-
-                // Pour le dernier recours, trouver n'importe quelle entrée contenant l'un des sites
-                for (const key in entretoisesParPanneaux) {
-                    const [keySite, keyPanneau] = key.split('|').map(part => part.toUpperCase().trim());
-                    const sitesMatch = searchSites.some(searchSite => keySite.includes(searchSite));
-
-                    if (sitesMatch) {
-                        // Pour Chautagne_Belley_Bregnier-Cordon, vérifier aussi le type de panneau (inf/sup)
-                        if (isPanneauInferieur || isPanneauSuperieur) {
-                            const isKeyPanneauInferieur = keyPanneau.includes('INF') || keyPanneau.includes('INFERIEUR');
-                            const isKeyPanneauSuperieur = keyPanneau.includes('SUP') || keyPanneau.includes('SUPERIEUR');
-
-                            // Vérifier si le type de panneau correspond
-                            if ((isPanneauInferieur && !isKeyPanneauInferieur) ||
-                                (isPanneauSuperieur && !isKeyPanneauSuperieur)) {
-                                // Types de panneaux différents, passer à la clé suivante
-                                continue;
-                            }
-                        }
-
-                        console.log(`Dernier recours: utilisation de ${key}`);
-                        pieces = entretoisesParPanneaux[key];
-                        break;
                     }
                 }
             }
@@ -1936,7 +1829,6 @@
                 option.dataset.defaultQuantity = piece.quantite || 1;  // Quantité du fichier
                 option.dataset.repere = piece.repere || '';
                 selectElement.appendChild(option);
-                console.log(`Option ajoutée: ${affichage}, quantité par défaut: ${piece.quantite || 1}`);
             });
 
             // Mettre à jour le texte d'information
@@ -3536,7 +3428,7 @@
                 <th>Site</th>
                 <th>Repère de panneaux</th>
                 <th>Quantité</th>
-                <th>Pièce associée</th>
+                <th>Entretoise</th>
                 <th>Transport Barreaux</th>
                 <th>Transport Panneaux</th>
                 <th>Emballage</th>

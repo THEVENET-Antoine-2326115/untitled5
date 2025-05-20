@@ -83,7 +83,7 @@ try {
         'Site',
         'Repère de panneaux',
         'Quantité',
-        'Pièce associée',
+        'Entretoise',
         'Transport Barreaux',
         'Manutention Barreaux',
         'Nbr Demi-Journées',
