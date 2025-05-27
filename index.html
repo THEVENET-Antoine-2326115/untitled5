@@ -1048,6 +1048,7 @@
                 transportPanneauxOptionsDiv.style.display = 'none';
                 emballageOptionsDiv.style.display = 'none';
                 entretoiseOptionsDiv.style.display = 'none';
+                entretoiseSelectionDiv.style.display = 'none';
                 return;
             }
 
@@ -1061,6 +1062,7 @@
                 transportPanneauxOptionsDiv.style.display = 'none';
                 emballageOptionsDiv.style.display = 'none';
                 entretoiseOptionsDiv.style.display = 'none';
+                entretoiseSelectionDiv.style.display = 'none';
                 return;
             }
 
@@ -1198,7 +1200,7 @@
             }
 
             // Vérifier si nous devons afficher le sélecteur d'entretoises spécifiques
-            if (shouldShowEntretoiseSelection() && entretoiseSelectionDiv) {
+            if (shouldShowEntretoiseSelection() && entretoiseSelectionDiv && selectedRepere) { // ← Ajouter && selectedRepere
                 // Afficher le sélecteur d'entretoises spécifiques
                 entretoiseSelectionDiv.style.display = 'block';
 
@@ -1208,6 +1210,9 @@
                 } catch (error) {
                     console.error("Erreur lors du remplissage du sélecteur d'entretoises:", error);
                 }
+            } else if (entretoiseSelectionDiv) {
+                // Masquer le sélecteur d'entretoises spécifiques
+                entretoiseSelectionDiv.style.display = 'none';
             } else if (entretoiseSelectionDiv) {
                 // Masquer le sélecteur d'entretoises spécifiques
                 entretoiseSelectionDiv.style.display = 'none';
@@ -1948,6 +1953,11 @@
                 window.cumulativeResults[existingTransportIndex].grutagePanneaux = grutagePanneaux;
                 window.cumulativeResults[existingTransportIndex].emballage = emballage;
 
+                const entretoiseSelectionDiv = document.getElementById('entretoises-selection');
+                if (entretoiseSelectionDiv) {
+                    entretoiseSelectionDiv.style.display = 'none';
+                }
+
                 // Ajouter les options d'entretoises
                 window.cumulativeResults[existingTransportIndex].entretoisesParCNR = entretoisesParCNR;
                 window.cumulativeResults[existingTransportIndex].entretoisesType = entretoisesType;
@@ -2168,11 +2178,14 @@
                 };
             }
 
-            // Calculer la quantité totale de panneaux
+            // Calculer la quantité totale de panneaux SEULEMENT (pas les entretoises)
             let quantiteTotalePanneaux = 0;
 
             window.cumulativeResults.forEach(result => {
-                quantiteTotalePanneaux += parseInt(result.quantity) || 0;
+                // NE COMPTER QUE LES PANNEAUX (ignorer les options et les entretoises)
+                if (!result.isTransportOnly && !result.isEntretoise && result.quantity) {
+                    quantiteTotalePanneaux += parseInt(result.quantity) || 0;
+                }
             });
 
             // Déterminer les forfaits unitaires en fonction de la quantité
@@ -2185,7 +2198,7 @@
             let forfaitTotal = forfaitLogistiqueTotal + forfaitSuiviTotal;
 
             // Afficher les résultats dans la console
-            console.log("Nombre total de panneaux: " + quantiteTotalePanneaux);
+            console.log("Nombre total de panneaux (sans entretoises): " + quantiteTotalePanneaux);
             console.log("Forfait logistique unitaire: " + forfaitLogistiqueUnitaire.toFixed(2) + " €");
             console.log("Forfait logistique total: " + forfaitLogistiqueTotal.toFixed(2) + " €");
             console.log("Forfait suivi unitaire: " + forfaitSuiviUnitaire.toFixed(2) + " €");
@@ -2248,6 +2261,8 @@
          * @return {number} Le prix total des soudages de barreaux
          */
         function calculerPrixSoudageBarreaux() {
+            console.log("=== DÉBUT DU CALCUL DU PRIX DE SOUDAGE DES BARREAUX ===");
+
             // Vérifier si nous avons des résultats dans le tableau récapitulatif
             if (!window.cumulativeResults || window.cumulativeResults.length === 0) {
                 console.log("Prix soudage barreaux: 0 € (aucun panneau sélectionné)");
@@ -2259,6 +2274,11 @@
 
             // Parcourir tous les panneaux dans le tableau récapitulatif
             window.cumulativeResults.forEach(result => {
+                // IGNORER les options de transport et les entretoises
+                if (result.isTransportOnly || result.isEntretoise) {
+                    return; // Passer à l'élément suivant
+                }
+
                 // Vérifier si c'est un panneau sur le site St-Vallier
                 const estStVallier = result.site &&
                     (result.site.toUpperCase().includes("SAINT VALLIER") ||
@@ -2285,6 +2305,7 @@
             console.log("Nombre de panneaux supérieurs à St-Vallier: " + nbPanneauxSupStVallier);
             console.log("Prix unitaire du soudage de barreaux: " + prixUnitaireSoudage.toFixed(2) + " €");
             console.log("Prix total des soudages de barreaux: " + prixTotalSoudage.toFixed(2) + " €");
+            console.log("=== FIN DU CALCUL DU PRIX DE SOUDAGE DES BARREAUX ===");
 
             return prixTotalSoudage;
         }
@@ -3244,13 +3265,13 @@
                 return 0;
             }
 
-            // Calculer la quantité totale de panneaux
+            // Calculer la quantité totale de panneaux SEULEMENT (pas les entretoises)
             let quantiteTotalePanneaux = 0;
 
             if (window.cumulativeResults) {
                 for (const result of window.cumulativeResults) {
-                    // Ne compter que les lignes qui ne sont pas des transports et qui ont une quantité
-                    if (!result.isTransportOnly && result.quantity) {
+                    // NE COMPTER QUE LES PANNEAUX (ignorer les options et les entretoises)
+                    if (!result.isTransportOnly && !result.isEntretoise && result.quantity) {
                         quantiteTotalePanneaux += parseInt(result.quantity, 10);
                     }
                 }
@@ -3262,7 +3283,7 @@
             // Calculer le prix total d'emballage
             const prixTotalEmballage = quantiteTotalePanneaux * prixUnitaireEmballage;
 
-            console.log(`Nombre total de panneaux: ${quantiteTotalePanneaux}`);
+            console.log(`Nombre total de panneaux (sans entretoises): ${quantiteTotalePanneaux}`);
             console.log(`Prix unitaire de l'emballage: ${prixUnitaireEmballage.toFixed(2)} €`);
             console.log(`Prix total de l'emballage: ${prixTotalEmballage.toFixed(2)} €`);
             console.log("=== FIN DU CALCUL DU PRIX D'EMBALLAGE ===");
@@ -3737,6 +3758,11 @@
                 // Réinitialiser le sélecteur de repère
                 document.getElementById('repere-select').value = '';
 
+                const entretoiseSelectionDiv = document.getElementById('entretoises-selection');
+                if (entretoiseSelectionDiv) {
+                    entretoiseSelectionDiv.style.display = 'none';
+                }
+
                 // Obtenir le site sélectionné
                 const selectedSite = document.getElementById('site-select').value;
 
@@ -4086,7 +4112,7 @@
             // Calculer les prix
             const priceDetails = calculerPrixTotal();
 
-            // Calculer le nombre total de panneaux
+            // Calculer le nombre total de panneaux SEULEMENT (pas les entretoises)
             let totalPanneaux = 0;
             let nbPanneauxSupStVallier = 0;
             let detailMontage = [];
@@ -4094,8 +4120,8 @@
             // Compter les panneaux par type et site
             if (window.cumulativeResults) {
                 for (const result of window.cumulativeResults) {
-                    // Ne compter que les lignes qui ne sont pas des transports et qui ont une quantité
-                    if (!result.isTransportOnly && result.quantity) {
+                    // NE COMPTER QUE LES PANNEAUX (ignorer les options ET les entretoises)
+                    if (!result.isTransportOnly && !result.isEntretoise && result.quantity) {
                         const quantity = parseInt(result.quantity, 10);
                         totalPanneaux += quantity;
 
@@ -4113,7 +4139,7 @@
                             nbPanneauxSupStVallier += quantity;
                         }
 
-                        // Ajouter les détails de montage
+                        // Ajouter les détails de montage SEULEMENT pour les panneaux
                         if (quantity > 0 && result.totalPrice > 0) {
                             // Calculer le prix unitaire en divisant le prix total par la quantité
                             const prixUnitaire = result.totalPrice / quantity;
@@ -4129,7 +4155,7 @@
                 }
             }
 
-            // Collecter les détails des forfaits logistique et suivi
+            // Collecter les détails des forfaits logistique et suivi (avec le bon nombre de panneaux)
             const forfaitLogistique = {
                 prixUnitaire: calculerForfaitLogistique(totalPanneaux).toFixed(2).replace('.', ','),
                 montant: calculerForfaitLogistique(totalPanneaux) * totalPanneaux
@@ -4148,6 +4174,8 @@
             const grutage = calculerPrixGrutage();
             const grutagePanneaux = calculerPrixGrutagePanneaux();
 
+            console.log(`Export: Total panneaux pour forfaits/emballage: ${totalPanneaux}`);
+
             return {
                 prixForfaits: priceDetails.prixForfaits || 0,
                 prixSoudage: priceDetails.prixSoudage || 0,
@@ -4161,8 +4189,8 @@
                 prixMontage: priceDetails.prixMontage || 0,
                 prixTotal: priceDetails.prixTotal || 0,
 
-                // Données détaillées pour les calculs
-                totalPanneaux: totalPanneaux,
+                // Données détaillées pour les calculs (avec le bon nombre de panneaux)
+                totalPanneaux: totalPanneaux,  // ← SEULEMENT LES PANNEAUX
                 nbPanneauxSupStVallier: nbPanneauxSupStVallier,
                 forfaitLogistique: forfaitLogistique,
                 forfaitSuivi: forfaitSuivi,
