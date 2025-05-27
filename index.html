@@ -608,10 +608,6 @@
             <option value="">Sélectionnez une entretoise...</option>
             <!-- Les options seront ajoutées dynamiquement en JavaScript -->
         </select>
-        <div style="margin-top: 10px;">
-            <label for="entretoise-quantity">Quantité par panneau:</label>
-            <input type="number" id="entretoise-quantity" class="search-input" min="1" value="1" style="width: 60px;">
-        </div>
         <button id="add-entretoise-button" class="search-button" style="margin-top: 10px;">Ajouter entretoise</button>
         <div id="entretoises-selected" style="margin-top: 15px; display: none;">
             <div class="search-title">Entretoises sélectionnées</div>
@@ -1249,12 +1245,11 @@
             } else {
                 let totalPieces = 0;
                 selectedEntretoises.forEach(entretoise => {
-                    const defaultQty = entretoise.defaultQuantity || 1;
-                    const userQty = entretoise.userSelectedQuantity || 1;
-                    totalPieces += defaultQty * panneauQuantity * userQty;
+                    const qtyFromFile = entretoise.quantityFromFile || 1;
+                    totalPieces += qtyFromFile * panneauQuantity;
                 });
 
-                infoElement.textContent = `Vous avez sélectionné ${selectedEntretoises.length} type(s) de pièces pour un total de ${totalPieces} pièces.`;
+                infoElement.textContent = `Vous avez sélectionné ${selectedEntretoises.length} type(s) de pièces pour un total de ${totalPieces} pièces (calcul automatique).`;
             }
         }
 
@@ -1849,13 +1844,15 @@
             }
         }
 
+
+
 // Fonction pour ajouter une entretoise à la liste
         function addEntretoise() {
             const entretoiseSelect = getElement('entretoise-select');
             if (!entretoiseSelect) return;
 
             const selectedIndex = entretoiseSelect.selectedIndex;
-            if (selectedIndex < 1) { // L'index 0 est l'option "Sélectionnez une pièce..."
+            if (selectedIndex < 1) {
                 alert("Veuillez sélectionner une pièce.");
                 return;
             }
@@ -1863,118 +1860,51 @@
             const selectedOption = entretoiseSelect.options[selectedIndex];
             const selectedEntretoise = selectedOption.value;
 
-            // Récupérer la quantité par défaut du fichier Excel (colonne QTE)
-            const defaultQuantity = selectedOption.dataset.defaultQuantity
-                ? parseInt(selectedOption.dataset.defaultQuantity)
-                : 1;
+            // RÉCUPÉRER AUTOMATIQUEMENT la quantité du fichier Excel
+// PAR cette version corrigée :
+            let defaultQuantity = 1;
 
-            // Extraire le repère de l'option
+// Méthode 1: Récupérer depuis le dataset (plus fiable)
+            if (selectedOption.dataset.defaultQuantity) {
+                defaultQuantity = parseInt(selectedOption.dataset.defaultQuantity);
+                console.log("Quantité récupérée du dataset:", defaultQuantity);
+            } else {
+                // Méthode 2: Extraire depuis le texte affiché
+                const optionText = selectedOption.textContent || "";
+                const qtyMatch = optionText.match(/Qté fichier:\s*(\d+)/i);
+                if (qtyMatch && qtyMatch[1]) {
+                    defaultQuantity = parseInt(qtyMatch[1]);
+                    console.log("Quantité extraite du texte:", defaultQuantity);
+                }
+            }
+
+            console.log("Quantité finale par panneau:", defaultQuantity);
+
             const repere = selectedOption.dataset.repere || "";
 
-            // Quantité indiquée par l'utilisateur (combien de fois cette pièce est sélectionnée)
-            const entretoiseQuantityInput = getElement('entretoise-quantity');
-            const userSelectedQuantity = entretoiseQuantityInput
-                ? (parseInt(entretoiseQuantityInput.value) || 1)
-                : 1;
-
-            // Mettre à jour le champ de quantité avec la valeur saisie par l'utilisateur
-            if (entretoiseQuantityInput) {
-                entretoiseQuantityInput.value = userSelectedQuantity;
-            }
-
             // Vérifier si cette entretoise est déjà dans la liste
             const existingIndex = selectedEntretoises.findIndex(e => e.description === selectedEntretoise);
 
             if (existingIndex !== -1) {
-                // Mettre à jour la quantité si l'entretoise existe déjà
-                selectedEntretoises[existingIndex].userSelectedQuantity = userSelectedQuantity;
-                console.log(`Quantité mise à jour pour ${selectedEntretoise}: utilisateur: ${userSelectedQuantity}, fichier: ${defaultQuantity}`);
-            } else {
-                // Ajouter la nouvelle entretoise
-                const entretoise = {
-                    description: selectedEntretoise,
-                    repere: repere,
-                    defaultQuantity: defaultQuantity,  // Quantité du fichier (QTE)
-                    userSelectedQuantity: userSelectedQuantity,  // Quantité sélectionnée par l'utilisateur
-                    id: 'entretoise-' + Date.now()
-                };
-
-                selectedEntretoises.push(entretoise);
-                console.log(`Nouvelle entretoise ajoutée: ${selectedEntretoise}, utilisateur: ${userSelectedQuantity}, fichier: ${defaultQuantity}`);
-            }
-
-            // Afficher un message de confirmation
-            alert(`Pièce "${selectedEntretoise}" ajoutée ${userSelectedQuantity} fois. (Quantité par panneau dans le fichier: ${defaultQuantity})`);
-
-            // Mettre à jour le texte d'information
-            updateEntretoiseInfo();
-        }
-
-// Fonction pour ajouter une entretoise à la liste
-        function addEntretoise() {
-            const entretoiseSelect = getElement('entretoise-select');
-            if (!entretoiseSelect) return;
-
-            const selectedIndex = entretoiseSelect.selectedIndex;
-            if (selectedIndex < 1) { // L'index 0 est l'option "Sélectionnez une pièce..."
-                alert("Veuillez sélectionner une pièce.");
+                alert(`Cette pièce est déjà sélectionnée.`);
                 return;
             }
 
-            const selectedOption = entretoiseSelect.options[selectedIndex];
-            const selectedEntretoise = selectedOption.value;
+            // Ajouter la nouvelle entretoise avec la quantité automatique
+            const entretoise = {
+                description: selectedEntretoise,
+                repere: repere,
+                defaultQuantity: defaultQuantity,    // ← Garder le nom original
+                quantityPerPanneau: defaultQuantity, // ← Pour compatibilité
+                id: 'entretoise-' + Date.now()
+            };
 
-            // Déterminer la quantité par défaut à partir de l'option sélectionnée
-            const defaultQuantity = selectedOption.dataset.defaultQuantity
-                ? parseInt(selectedOption.dataset.defaultQuantity)
-                : 1;
+            selectedEntretoises.push(entretoise);
 
-            // Extraire le repère si présent dans le texte de l'option
-            let repere = "";
-            const optionText = selectedOption.textContent || "";
-            const repereMatch = optionText.match(/^([A-Z0-9]+)\s*-\s*(.+)/i);
-            if (repereMatch && repereMatch[1]) {
-                repere = repereMatch[1].trim();
-            } else {
-                // Utiliser le dataset si disponible
-                repere = selectedOption.dataset.repere || "";
-            }
+            // Message informatif
+            alert(`Pièce "${selectedEntretoise}" ajoutée (${defaultQuantity} par panneau selon le fichier).`);
 
-            // Utiliser la quantité par défaut ou celle saisie par l'utilisateur
-            const entretoiseQuantityInput = getElement('entretoise-quantity');
-            const entretoiseQuantity = entretoiseQuantityInput
-                ? (parseInt(entretoiseQuantityInput.value) || defaultQuantity)
-                : defaultQuantity;
-
-            // Mettre à jour le champ de quantité avec la valeur par défaut
-            if (entretoiseQuantityInput) {
-                entretoiseQuantityInput.value = entretoiseQuantity;
-            }
-
-            // Vérifier si cette entretoise est déjà dans la liste
-            const existingIndex = selectedEntretoises.findIndex(e => e.description === selectedEntretoise);
-
-            if (existingIndex !== -1) {
-                // Mettre à jour la quantité si l'entretoise existe déjà
-                selectedEntretoises[existingIndex].quantityPerPanneau = entretoiseQuantity;
-                console.log(`Quantité mise à jour pour ${selectedEntretoise}: ${entretoiseQuantity} par panneau`);
-            } else {
-                // Ajouter la nouvelle entretoise
-                const entretoise = {
-                    description: selectedEntretoise,
-                    repere: repere,
-                    quantityPerPanneau: entretoiseQuantity,  // Quantité par panneau
-                    id: 'entretoise-' + Date.now()
-                };
-
-                selectedEntretoises.push(entretoise);
-                console.log(`Nouvelle entretoise ajoutée: ${selectedEntretoise}, quantité: ${entretoiseQuantity} par panneau`);
-            }
-
-            // Afficher un message de confirmation
-            alert(`Pièce "${selectedEntretoise}" ajoutée avec une quantité de ${entretoiseQuantity} par panneau.`);
-
-            // Mettre à jour le texte d'information
+            // Mettre à jour l'affichage
             updateEntretoiseInfo();
         }
 
@@ -2063,22 +1993,26 @@
             updateResultsTable();
         }
 
-        // Fonction pour ajouter les entretoises sélectionnées aux résultats
+// Fonction pour ajouter les entretoises sélectionnées aux résultats
         function addEntretoisesToResults(site, panneau, panneauQuantity) {
+            console.log("=== DÉBUT addEntretoisesToResults ===");
+            console.log(`Site: ${site}, Panneau: ${panneau}, Quantité panneaux: ${panneauQuantity}`);
+
             // Pour chaque entretoise sélectionnée
             selectedEntretoises.forEach(entretoise => {
-                // Calculer la quantité totale d'entretoises:
-                // (Quantité dans le fichier × Nombre de panneaux × Nombre de fois sélectionné par l'utilisateur)
-                const defaultQuantity = entretoise.defaultQuantity || 1;  // Quantité par panneau du fichier
-                const userSelectedQuantity = entretoise.userSelectedQuantity || 1;  // Combien de fois l'utilisateur l'a sélectionnée
+                console.log("Traitement de l'entretoise:", entretoise);
 
-                const totalEntretoiseQuantity = defaultQuantity * panneauQuantity * userSelectedQuantity;
+                // Récupérer la quantité par panneau depuis le fichier Excel
+                const quantityPerPanneau = entretoise.defaultQuantity || entretoise.quantityPerPanneau || 1;
+
+                // Calculer la quantité totale d'entretoises:
+                // (Quantité par panneau du fichier × Nombre de panneaux)
+                const totalEntretoiseQuantity = quantityPerPanneau * panneauQuantity;
 
                 console.log(`Calcul quantité pour ${entretoise.description}:`);
-                console.log(`  Quantité du fichier: ${defaultQuantity}`);
+                console.log(`  Quantité par panneau (fichier): ${quantityPerPanneau}`);
                 console.log(`  Quantité de panneaux: ${panneauQuantity}`);
-                console.log(`  Sélectionné par l'utilisateur: ${userSelectedQuantity} fois`);
-                console.log(`  Total: ${defaultQuantity} × ${panneauQuantity} × ${userSelectedQuantity} = ${totalEntretoiseQuantity}`);
+                console.log(`  Total entretoises: ${totalEntretoiseQuantity}`);
 
                 // Analyser la description pour extraire le repère si possible
                 let repere = entretoise.repere || "";
@@ -2108,6 +2042,9 @@
                     filteredItems.forEach(item => {
                         totalAmount += parseFloat(item.sousTotal) || 0;
                     });
+                    console.log(`Prix trouvé pour ${entretoise.description}: ${totalAmount} €`);
+                } else {
+                    console.log(`Aucun prix trouvé pour ${entretoise.description}`);
                 }
 
                 // Générer un ID unique pour l'entretoise
@@ -2119,14 +2056,16 @@
                     site: site,
                     description: entretoise.description,
                     repere: repere,
-                    quantity: totalEntretoiseQuantity,  // Quantité totale calculée correctement
-                    totalPrice: totalAmount * userSelectedQuantity,  // Prix unitaire × nombre de fois sélectionné
+                    quantity: totalEntretoiseQuantity,  // Quantité totale calculée
+                    totalPrice: totalAmount,            // Prix unitaire (pas multiplié)
                     isEntretoise: true,
                     linkedPanneau: panneau
                 });
 
                 console.log(`Entretoise ajoutée: ${repere} - ${entretoise.description}, quantité totale: ${totalEntretoiseQuantity}`);
             });
+
+            console.log("=== FIN addEntretoisesToResults ===");
         }
 
 
@@ -3840,25 +3779,43 @@
             const addEntretoiseBtn = document.getElementById('add-entretoise-button');
             if (addEntretoiseBtn) {
                 addEntretoiseBtn.addEventListener('click', function() {
-                    addEntretoise();
+                    try {
+                        addEntretoise();
+                    } catch (error) {
+                        console.error("Erreur dans addEntretoise:", error);
+                    }
                 });
+            } else {
+                console.log("Bouton add-entretoise-button non trouvé (normal au chargement)");
             }
 
 // Gestionnaire pour le changement de quantité de panneaux
-            document.getElementById('quantity-input').addEventListener('change', function() {
-                // Mettre à jour uniquement le texte d'information si des entretoises sont sélectionnées
-                if (selectedEntretoises.length > 0) {
-                    updateEntretoiseInfo();
-                }
-            });
+            const quantityInput = document.getElementById('quantity-input');
+            if (quantityInput) {
+                quantityInput.addEventListener('change', function() {
+                    try {
+                        // Mettre à jour uniquement le texte d'information si des entretoises sont sélectionnées
+                        if (selectedEntretoises && selectedEntretoises.length > 0) {
+                            updateEntretoiseInfo();
+                        }
+                    } catch (error) {
+                        console.error("Erreur dans quantity-input change:", error);
+                    }
+                });
+            }
 
 // Gestionnaire pour le changement de quantité d'entretoises
-            document.getElementById('entretoise-quantity').addEventListener('change', function() {
-                const value = parseInt(this.value);
-                if (isNaN(value) || value < 1) {
-                    this.value = 1;
-                }
-            });
+            const entretoiseQuantityInput = document.getElementById('entretoise-quantity');
+            if (entretoiseQuantityInput) {
+                entretoiseQuantityInput.addEventListener('change', function() {
+                    const value = parseInt(this.value);
+                    if (isNaN(value) || value < 1) {
+                        this.value = 1;
+                    }
+                });
+            } else {
+                console.log("Input entretoise-quantity non trouvé (peut être normal)");
+            }
 
 
             // Gestionnaire pour le bouton de filtrage par repère
