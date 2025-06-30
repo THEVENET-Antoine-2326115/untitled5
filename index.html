@@ -608,12 +608,24 @@
             <option value="">Sélectionnez une entretoise...</option>
             <!-- Les options seront ajoutées dynamiquement en JavaScript -->
         </select>
-        <button id="add-entretoise-button" class="search-button" style="margin-top: 10px;">Ajouter entretoise</button>
+
+        <!-- CHAMP DE QUANTITÉ D'ENTRETOISES -->
+        <div id="entretoise-quantity-container" class="search-form" style="display: none; margin-top: 15px;">
+            <div>
+                <label for="entretoise-quantity-input">Quantité d'entretoises:</label>
+                <input type="number" id="entretoise-quantity-input" class="search-input" min="1" value="1" style="width: 80px;">
+            </div>
+            <button id="add-entretoise-button" class="search-button">Ajouter entretoise</button>
+        </div>
+
         <div id="entretoises-selected" style="margin-top: 15px; display: none;">
             <div class="search-title">Entretoises sélectionnées</div>
             <ul id="entretoises-list" style="list-style-type: none; padding: 0;"></ul>
         </div>
     </div>
+
+
+
 
     <div id="site-result" style="display: none;"></div>
 </div>
@@ -1189,18 +1201,11 @@
             // Stocker les items filtrés dans une variable globale pour la fonction de calcul
             window.currentFilteredItems = filteredItems;
 
-            // Si c'est un nouveau panneau, réinitialiser les entretoises sélectionnées
-            if (currentPanneauWithEntretoises !== selectedRepere) {
-                currentPanneauWithEntretoises = selectedRepere;
-                selectedEntretoises = [];
-                const entrtoisesList = getElement('entretoises-list');
-                if (entrtoisesList) entrtoisesList.innerHTML = '';
-                const entretoisesSelected = getElement('entretoises-selected');
-                if (entretoisesSelected) entretoisesSelected.style.display = 'none';
-            }
+            // CORRECTION 5: Réinitialiser les entretoises pour le nouveau panneau
+            resetEntretoisesForNewPanneau(selectedRepere);
 
             // Vérifier si nous devons afficher le sélecteur d'entretoises spécifiques
-            if (shouldShowEntretoiseSelection() && entretoiseSelectionDiv && selectedRepere) { // ← Ajouter && selectedRepere
+            if (shouldShowEntretoiseSelection() && entretoiseSelectionDiv) {
                 // Afficher le sélecteur d'entretoises spécifiques
                 entretoiseSelectionDiv.style.display = 'block';
 
@@ -1210,9 +1215,6 @@
                 } catch (error) {
                     console.error("Erreur lors du remplissage du sélecteur d'entretoises:", error);
                 }
-            } else if (entretoiseSelectionDiv) {
-                // Masquer le sélecteur d'entretoises spécifiques
-                entretoiseSelectionDiv.style.display = 'none';
             } else if (entretoiseSelectionDiv) {
                 // Masquer le sélecteur d'entretoises spécifiques
                 entretoiseSelectionDiv.style.display = 'none';
@@ -1227,13 +1229,6 @@
             const quantityInput = getElement('quantity-input');
             if (quantityInput) {
                 quantityInput.value = 1;
-            }
-
-            // Mettre à jour le texte d'information sur les entretoises
-            try {
-                updateEntretoiseInfo();
-            } catch (error) {
-                console.warn("La fonction updateEntretoiseInfo n'est pas définie ou a généré une erreur:", error);
             }
         }
 
@@ -1682,11 +1677,37 @@
             };
         }
 
+        // Nouvelle fonction pour gérer la sélection d'une entretoise
+        function handleEntretoiseSelection() {
+            const entretoiseSelect = getElement('entretoise-select');
+            const quantityContainer = getElement('entretoise-quantity-container');
+            const quantityInput = getElement('entretoise-quantity-input');
+
+            if (!entretoiseSelect || !quantityContainer) return;
+
+            const selectedIndex = entretoiseSelect.selectedIndex;
+
+            if (selectedIndex < 1) {
+                // Aucune entretoise sélectionnée, masquer le champ de quantité
+                quantityContainer.style.display = 'none';
+            } else {
+                // Entretoise sélectionnée, afficher le champ de quantité
+                quantityContainer.style.display = 'flex';
+
+                // Réinitialiser la quantité à 1
+                if (quantityInput) {
+                    quantityInput.value = 1;
+                }
+            }
+        }
+
+
 // Fonction pour remplir le sélecteur d'entretoises spécifiques
-// Fonction améliorée pour remplir le sélecteur d'entretoises spécifiques
         function populateEntretoiseSelect(site, panneau) {
             console.log(`Remplissage du sélecteur pour site: ${site}, panneau: ${panneau}`);
             const selectElement = getElement('entretoise-select');
+            const quantityContainer = getElement('entretoise-quantity-container');
+
             if (!selectElement) {
                 console.error("Élément select pour entretoises non trouvé");
                 return;
@@ -1697,103 +1718,216 @@
                 selectElement.remove(1);
             }
 
+            // Masquer le champ de quantité par défaut
+            if (quantityContainer) {
+                quantityContainer.style.display = 'none';
+            }
+
             // Chercher les pièces correspondant à ce panneau
             let pieces = [];
+            let siteMatch = false;
+            let panneauMatch = false;
 
             // Normaliser le site et le panneau pour faciliter les comparaisons
             const siteNormalized = site.toUpperCase().trim();
             const panneauNormalized = panneau.toUpperCase().trim();
 
-            console.log(`Site normalisé: ${siteNormalized}, Panneau normalisé: ${panneauNormalized}`);
+            // Détecter s'il s'agit d'un panneau inférieur ou supérieur
+            const isPanneauInferieur = panneauNormalized.includes('INF') || panneauNormalized.includes('INFERIEUR');
+            const isPanneauSuperieur = panneauNormalized.includes('SUP') || panneauNormalized.includes('SUPERIEUR');
 
-            // Analyse spécifique pour St Vallier
-            if (siteNormalized.includes("SAINT VALLIER") || siteNormalized.includes("ST VALLIER") || siteNormalized.includes("ST-VALLIER")) {
-                // Extraire le code P1, P2, P3, etc. du panneau
-                const panneauCodeMatch = panneauNormalized.match(/P\d+X?/i);
-                const panneauCode = panneauCodeMatch ? panneauCodeMatch[0].toUpperCase() : null;
+            console.log(`Type de panneau: ${isPanneauInferieur ? 'Inférieur' : (isPanneauSuperieur ? 'Supérieur' : 'Non spécifié')}`);
 
-                console.log(`Détecté panneau St Vallier avec code: ${panneauCode}`);
+            // Gestion du site combiné
+            let searchSites = [siteNormalized];
+            if (siteNormalized === "CHAUTAGNE_BELLEY_BREGNIER-CORDON") {
+                searchSites = ["CHAUTAGNE", "BELLEY", "BREGNIER-CORDON", "CHAUTAGNE_BELLEY_BREGNIER-CORDON"];
+            } else if (siteNormalized === "CHAUTAGNE" || siteNormalized === "BELLEY" || siteNormalized === "BREGNIER-CORDON") {
+                searchSites = ["CHAUTAGNE", "BELLEY", "BREGNIER-CORDON", "CHAUTAGNE_BELLEY_BREGNIER-CORDON"];
+            }
 
-                if (panneauCode) {
-                    // Chercher des correspondances directes
+            console.log(`Recherche de pièces pour ${searchSites.join(", ")} - ${panneauNormalized}`);
+
+            // Parcourir toutes les clés dans entretoisesParPanneaux
+            for (const key in entretoisesParPanneaux) {
+                // Décomposer la clé en site et panneau
+                const [keySite, keyPanneau] = key.split('|').map(part => part.toUpperCase().trim());
+
+                console.log(`Examen de la clé: ${key} (${keySite} | ${keyPanneau})`);
+
+                // Vérifier la correspondance du site avec l'un des sites de recherche
+                const sitesMatch = searchSites.some(searchSite =>
+                    keySite === searchSite || keySite.includes(searchSite) || searchSite.includes(keySite)
+                );
+
+                if (sitesMatch) {
+                    siteMatch = true;
+                    console.log(`  Site correspondant: ${keySite}`);
+
+                    // Pour Chautagne_Belley_Bregnier-Cordon, vérifier aussi le type de panneau (inf/sup)
+                    if ((siteNormalized === "CHAUTAGNE_BELLEY_BREGNIER-CORDON" ||
+                            siteNormalized === "CHAUTAGNE" ||
+                            siteNormalized === "BELLEY" ||
+                            siteNormalized === "BREGNIER-CORDON") &&
+                        (isPanneauInferieur || isPanneauSuperieur)) {
+
+                        const isKeyPanneauInferieur = keyPanneau.includes('INF') || keyPanneau.includes('INFERIEUR');
+                        const isKeyPanneauSuperieur = keyPanneau.includes('SUP') || keyPanneau.includes('SUPERIEUR');
+
+                        // Vérifier si le type de panneau correspond
+                        if ((isPanneauInferieur && !isKeyPanneauInferieur) ||
+                            (isPanneauSuperieur && !isKeyPanneauSuperieur)) {
+                            // Types de panneaux différents, passer à la clé suivante
+                            console.log(`  Type de panneau différent, ignoré`);
+                            continue;
+                        }
+                    }
+
+                    // Cas spécial pour AVIGNON G1, G2, etc.
+                    if (siteNormalized === "AVIGNON") {
+                        // Extraire le numéro de panneau (G1, G2, etc.) du panneau actuel
+                        const panneauCodeMatch = panneauNormalized.match(/G\d+/i);
+                        const keyPanneauCodeMatch = keyPanneau.match(/G\d+/i);
+
+                        if (panneauCodeMatch && keyPanneauCodeMatch) {
+                            if (panneauCodeMatch[0].toUpperCase() === keyPanneauCodeMatch[0].toUpperCase()) {
+                                console.log(`  Correspondance spéciale AVIGNON: ${panneauCodeMatch[0]} === ${keyPanneauCodeMatch[0]}`);
+                                pieces = entretoisesParPanneaux[key];
+                                panneauMatch = true;
+                                break;
+                            }
+                        }
+                    }
+                    // Cas général
+                    else if (keyPanneau === panneauNormalized || keyPanneau.includes(panneauNormalized) || panneauNormalized.includes(keyPanneau)) {
+                        console.log(`  Panneau correspondant: ${keyPanneau}`);
+                        pieces = entretoisesParPanneaux[key];
+                        panneauMatch = true;
+                        break;
+                    }
+                }
+            }
+
+            // Si aucune correspondance exacte n'est trouvée, recherche plus large
+            if (pieces.length === 0) {
+                console.log("Aucune correspondance exacte, recherche plus large...");
+
+                // Chercher des correspondances partielles pour les panneaux AVIGNON G1, G2, etc.
+                if (siteNormalized === "AVIGNON" && panneauNormalized.match(/G\d+/i)) {
+                    const panneauCode = panneauNormalized.match(/G\d+/i)[0].toUpperCase();
+                    console.log(`Recherche spéciale pour AVIGNON ${panneauCode}`);
+
                     for (const key in entretoisesParPanneaux) {
                         const keyUpper = key.toUpperCase();
-
-                        // Vérifie si la clé contient "ST VALLIER" ou "SAINT VALLIER" et le code du panneau
-                        if ((keyUpper.includes("ST VALLIER") || keyUpper.includes("SAINT VALLIER") || keyUpper.includes("ST-VALLIER"))
-                            && keyUpper.includes(panneauCode)) {
-                            console.log(`Trouvé correspondance pour St Vallier ${panneauCode}: ${key}`);
+                        if (keyUpper.includes("AVIGNON") && keyUpper.includes(panneauCode)) {
+                            console.log(`Trouvé correspondance: ${key}`);
                             pieces = entretoisesParPanneaux[key];
                             break;
                         }
                     }
+                }
+                // Cas spécial pour le site combiné
+                else if (searchSites.length > 1) {
+                    for (const key in entretoisesParPanneaux) {
+                        const [keySite, keyPanneau] = key.split('|').map(part => part.toUpperCase().trim());
+                        const sitesMatch = searchSites.some(searchSite =>
+                            keySite === searchSite || keySite.includes(searchSite) || searchSite.includes(keySite)
+                        );
 
-                    // Si aucune correspondance directe, chercher par correspondance partielle
-                    if (pieces.length === 0) {
-                        for (const key in entretoisesParPanneaux) {
-                            const [keySite, keyPanneau] = key.split('|').map(part => part.toUpperCase().trim());
+                        if (sitesMatch) {
+                            // Pour Chautagne_Belley_Bregnier-Cordon, vérifier aussi le type de panneau (inf/sup)
+                            if (isPanneauInferieur || isPanneauSuperieur) {
+                                const isKeyPanneauInferieur = keyPanneau.includes('INF') || keyPanneau.includes('INFERIEUR');
+                                const isKeyPanneauSuperieur = keyPanneau.includes('SUP') || keyPanneau.includes('SUPERIEUR');
 
-                            if ((keySite.includes("ST VALLIER") || keySite.includes("SAINT VALLIER") || keySite.includes("ST-VALLIER"))) {
-                                // Pour les panneaux comme P1, P2, etc., essayer de trouver une correspondance
-                                if (keyPanneau.includes(panneauCode)) {
-                                    console.log(`Correspondance partielle pour St Vallier ${panneauCode}: ${key}`);
-                                    pieces = entretoisesParPanneaux[key];
-                                    break;
+                                // Vérifier si le type de panneau correspond
+                                if ((isPanneauInferieur && !isKeyPanneauInferieur) ||
+                                    (isPanneauSuperieur && !isKeyPanneauSuperieur)) {
+                                    // Types de panneaux différents, passer à la clé suivante
+                                    continue;
                                 }
                             }
-                        }
-                    }
 
-                    // Si toujours aucune correspondance, essayer d'utiliser P6 comme fallback
-                    if (pieces.length === 0 && panneauCode !== "P6" && panneauCode !== "P6X") {
-                        for (const key in entretoisesParPanneaux) {
-                            const keyUpper = key.toUpperCase();
-                            if ((keyUpper.includes("ST VALLIER") || keyUpper.includes("SAINT VALLIER") || keyUpper.includes("ST-VALLIER"))
-                                && (keyUpper.includes("P6") || keyUpper.includes("P6X"))) {
-                                console.log(`Utilisation de P6 comme fallback pour ${panneauCode}: ${key}`);
+                            if (keyPanneau.includes(panneauNormalized) || panneauNormalized.includes(keyPanneau)) {
+                                console.log(`Trouvé correspondance pour site combiné: ${key}`);
                                 pieces = entretoisesParPanneaux[key];
                                 break;
                             }
                         }
                     }
                 }
-            } else {
-                // Comportement existant pour les autres sites
-                // Chercher des correspondances exactes pour la paire site+panneau
+            }
+
+            // Si toujours aucune pièce trouvée, recherche par mot-clé dans toutes les clés
+            if (pieces.length === 0 && siteMatch) {
+                console.log("Recherche par mot-clé...");
+
+                // Extraire des mots-clés potentiels du nom du panneau
+                let keywords = panneauNormalized.split(/\s+/);
+                keywords = keywords.filter(word => word.length > 1); // Ignorer les mots trop courts
+
+                console.log(`Mots-clés: ${keywords.join(', ')}`);
+
                 for (const key in entretoisesParPanneaux) {
                     const [keySite, keyPanneau] = key.split('|').map(part => part.toUpperCase().trim());
 
-                    if (keySite === siteNormalized || keySite.includes(siteNormalized) || siteNormalized.includes(keySite)) {
-                        if (keyPanneau === panneauNormalized || keyPanneau.includes(panneauNormalized) || panneauNormalized.includes(keyPanneau)) {
-                            console.log(`Trouvé correspondance exacte: ${key}`);
-                            pieces = entretoisesParPanneaux[key];
-                            break;
-                        }
-                    }
-                }
+                    // Vérifier si l'un des sites de recherche est présent dans la clé
+                    const sitesMatch = searchSites.some(searchSite => keySite.includes(searchSite));
 
-                // Si aucune correspondance exacte, recherche plus large
-                if (pieces.length === 0) {
-                    for (const key in entretoisesParPanneaux) {
-                        const [keySite, keyPanneau] = key.split('|').map(part => part.toUpperCase().trim());
-
-                        if (keySite === siteNormalized || keySite.includes(siteNormalized) || siteNormalized.includes(keySite)) {
-                            // Détecter si c'est un panneau inférieur ou supérieur
-                            const isPanneauInferieur = panneauNormalized.includes('INF') || panneauNormalized.includes('INFERIEUR');
-                            const isPanneauSuperieur = panneauNormalized.includes('SUP') || panneauNormalized.includes('SUPERIEUR');
-
+                    if (sitesMatch) {
+                        // Pour Chautagne_Belley_Bregnier-Cordon, vérifier aussi le type de panneau (inf/sup)
+                        if (isPanneauInferieur || isPanneauSuperieur) {
                             const isKeyPanneauInferieur = keyPanneau.includes('INF') || keyPanneau.includes('INFERIEUR');
                             const isKeyPanneauSuperieur = keyPanneau.includes('SUP') || keyPanneau.includes('SUPERIEUR');
 
-                            // Correspondance de type (inf/sup)
-                            if ((isPanneauInferieur && isKeyPanneauInferieur) ||
-                                (isPanneauSuperieur && isKeyPanneauSuperieur) ||
-                                (!isPanneauInferieur && !isPanneauSuperieur && !isKeyPanneauInferieur && !isKeyPanneauSuperieur)) {
-                                console.log(`Trouvé correspondance par type: ${key}`);
+                            // Vérifier si le type de panneau correspond
+                            if ((isPanneauInferieur && !isKeyPanneauInferieur) ||
+                                (isPanneauSuperieur && !isKeyPanneauSuperieur)) {
+                                // Types de panneaux différents, passer à la clé suivante
+                                continue;
+                            }
+                        }
+
+                        // Vérifier si l'un des mots-clés est présent dans la clé
+                        for (const keyword of keywords) {
+                            if (keyPanneau.includes(keyword)) {
+                                console.log(`Trouvé mot-clé ${keyword} dans ${key}`);
                                 pieces = entretoisesParPanneaux[key];
                                 break;
                             }
                         }
+
+                        if (pieces.length > 0) break;
+                    }
+                }
+            }
+
+            // Si aucune pièce n'est toujours pas trouvée, utiliser un dernier recours
+            if (pieces.length === 0) {
+                console.log("Aucune pièce trouvée avec les méthodes précédentes, recherche large...");
+
+                // Pour le dernier recours, trouver n'importe quelle entrée contenant l'un des sites
+                for (const key in entretoisesParPanneaux) {
+                    const [keySite, keyPanneau] = key.split('|').map(part => part.toUpperCase().trim());
+                    const sitesMatch = searchSites.some(searchSite => keySite.includes(searchSite));
+
+                    if (sitesMatch) {
+                        // Pour Chautagne_Belley_Bregnier-Cordon, vérifier aussi le type de panneau (inf/sup)
+                        if (isPanneauInferieur || isPanneauSuperieur) {
+                            const isKeyPanneauInferieur = keyPanneau.includes('INF') || keyPanneau.includes('INFERIEUR');
+                            const isKeyPanneauSuperieur = keyPanneau.includes('SUP') || keyPanneau.includes('SUPERIEUR');
+
+                            // Vérifier si le type de panneau correspond
+                            if ((isPanneauInferieur && !isKeyPanneauInferieur) ||
+                                (isPanneauSuperieur && !isKeyPanneauSuperieur)) {
+                                // Types de panneaux différents, passer à la clé suivante
+                                continue;
+                            }
+                        }
+
+                        console.log(`Dernier recours: utilisation de ${key}`);
+                        pieces = entretoisesParPanneaux[key];
+                        break;
                     }
                 }
             }
@@ -1816,27 +1950,14 @@
                 const option = document.createElement('option');
                 option.value = piece.nom || '';
 
-                // Créer un affichage informatif avec repère et quantité
+                // Créer un affichage informatif avec repère seulement (plus de quantité du fichier)
                 let affichage = piece.nom || '';
-                if (piece.repere && piece.repere !== '-') {
-                    affichage = `${piece.repere} - ${affichage}`;
-                }
-                if (piece.quantite && piece.quantite > 0) {
-                    affichage += ` (Qté fichier: ${piece.quantite})`;
-                }
+
 
                 option.textContent = affichage;
-                option.dataset.defaultQuantity = piece.quantite || 1;  // Quantité du fichier
-                option.dataset.repere = piece.repere || '';
                 selectElement.appendChild(option);
+                console.log(`Option ajoutée: ${affichage}`);
             });
-
-            // Mettre à jour le texte d'information
-            try {
-                updateEntretoiseInfo();
-            } catch (error) {
-                console.warn("Erreur lors de la mise à jour des informations d'entretoises:", error);
-            }
 
             // Si aucune pièce trouvée, afficher un message
             if (filteredPieces.length === 0) {
@@ -1854,10 +1975,12 @@
 // Fonction pour ajouter une entretoise à la liste
         function addEntretoise() {
             const entretoiseSelect = getElement('entretoise-select');
-            if (!entretoiseSelect) return;
+            const quantityInput = getElement('entretoise-quantity-input');
+
+            if (!entretoiseSelect || !quantityInput) return;
 
             const selectedIndex = entretoiseSelect.selectedIndex;
-            if (selectedIndex < 1) {
+            if (selectedIndex < 1) { // L'index 0 est l'option "Sélectionnez une pièce..."
                 alert("Veuillez sélectionner une pièce.");
                 return;
             }
@@ -1865,52 +1988,50 @@
             const selectedOption = entretoiseSelect.options[selectedIndex];
             const selectedEntretoise = selectedOption.value;
 
-            // RÉCUPÉRER AUTOMATIQUEMENT la quantité du fichier Excel
-// PAR cette version corrigée :
-            let defaultQuantity = 1;
+            // Récupérer la quantité saisie par l'utilisateur
+            const quantity = parseInt(quantityInput.value) || 1;
 
-// Méthode 1: Récupérer depuis le dataset (plus fiable)
-            if (selectedOption.dataset.defaultQuantity) {
-                defaultQuantity = parseInt(selectedOption.dataset.defaultQuantity);
-                console.log("Quantité récupérée du dataset:", defaultQuantity);
-            } else {
-                // Méthode 2: Extraire depuis le texte affiché
-                const optionText = selectedOption.textContent || "";
-                const qtyMatch = optionText.match(/Qté fichier:\s*(\d+)/i);
-                if (qtyMatch && qtyMatch[1]) {
-                    defaultQuantity = parseInt(qtyMatch[1]);
-                    console.log("Quantité extraite du texte:", defaultQuantity);
-                }
+            if (quantity < 1) {
+                alert("La quantité doit être au minimum de 1.");
+                quantityInput.value = 1;
+                return;
             }
 
-            console.log("Quantité finale par panneau:", defaultQuantity);
-
+            // Extraire le repère de l'option
             const repere = selectedOption.dataset.repere || "";
 
             // Vérifier si cette entretoise est déjà dans la liste
             const existingIndex = selectedEntretoises.findIndex(e => e.description === selectedEntretoise);
 
             if (existingIndex !== -1) {
-                alert(`Cette pièce est déjà sélectionnée.`);
-                return;
+                // Mettre à jour la quantité si l'entretoise existe déjà
+                selectedEntretoises[existingIndex].quantity = quantity;
+                console.log(`Quantité mise à jour pour ${selectedEntretoise}: ${quantity}`);
+            } else {
+                // Ajouter la nouvelle entretoise
+                const entretoise = {
+                    description: selectedEntretoise,
+                    repere: repere,
+                    quantity: quantity,  // Quantité saisie par l'utilisateur (plus de calcul complexe)
+                    id: 'entretoise-' + Date.now()
+                };
+
+                selectedEntretoises.push(entretoise);
+                console.log(`Nouvelle entretoise ajoutée: ${selectedEntretoise}, quantité: ${quantity}`);
             }
 
-            // Ajouter la nouvelle entretoise avec la quantité automatique
-            const entretoise = {
-                description: selectedEntretoise,
-                repere: repere,
-                defaultQuantity: defaultQuantity,    // ← Garder le nom original
-                quantityPerPanneau: defaultQuantity, // ← Pour compatibilité
-                id: 'entretoise-' + Date.now()
-            };
+            // Afficher un message de confirmation
+            alert(`Pièce "${selectedEntretoise}" ajoutée avec une quantité de ${quantity}.`);
 
-            selectedEntretoises.push(entretoise);
+            // Réinitialiser la sélection
+            entretoiseSelect.value = '';
+            quantityInput.value = 1;
 
-            // Message informatif
-            alert(`Pièce "${selectedEntretoise}" ajoutée (${defaultQuantity} par panneau selon le fichier).`);
-
-            // Mettre à jour l'affichage
-            updateEntretoiseInfo();
+            // Masquer le champ de quantité
+            const quantityContainer = getElement('entretoise-quantity-container');
+            if (quantityContainer) {
+                quantityContainer.style.display = 'none';
+            }
         }
 
 // Fonction pour valider les options de transport pour un site
@@ -2005,24 +2126,12 @@
 
 // Fonction pour ajouter les entretoises sélectionnées aux résultats
         function addEntretoisesToResults(site, panneau, panneauQuantity) {
-            console.log("=== DÉBUT addEntretoisesToResults ===");
-            console.log(`Site: ${site}, Panneau: ${panneau}, Quantité panneaux: ${panneauQuantity}`);
-
-            // Pour chaque entretoise sélectionnée
+            // Pour chaque entretoise sélectionnée, créer une ligne séparée
             selectedEntretoises.forEach(entretoise => {
-                console.log("Traitement de l'entretoise:", entretoise);
+                // CORRECTION 1: Utiliser directement la quantité saisie par l'utilisateur
+                const entretoiseQuantity = entretoise.quantity; // Plus de calcul complexe
 
-                // Récupérer la quantité par panneau depuis le fichier Excel
-                const quantityPerPanneau = entretoise.defaultQuantity || entretoise.quantityPerPanneau || 1;
-
-                // Calculer la quantité totale d'entretoises:
-                // (Quantité par panneau du fichier × Nombre de panneaux)
-                const totalEntretoiseQuantity = quantityPerPanneau * panneauQuantity;
-
-                console.log(`Calcul quantité pour ${entretoise.description}:`);
-                console.log(`  Quantité par panneau (fichier): ${quantityPerPanneau}`);
-                console.log(`  Quantité de panneaux: ${panneauQuantity}`);
-                console.log(`  Total entretoises: ${totalEntretoiseQuantity}`);
+                console.log(`Ajout entretoise: ${entretoise.description}, quantité: ${entretoiseQuantity}`);
 
                 // Analyser la description pour extraire le repère si possible
                 let repere = entretoise.repere || "";
@@ -2052,30 +2161,25 @@
                     filteredItems.forEach(item => {
                         totalAmount += parseFloat(item.sousTotal) || 0;
                     });
-                    console.log(`Prix trouvé pour ${entretoise.description}: ${totalAmount} €`);
-                } else {
-                    console.log(`Aucun prix trouvé pour ${entretoise.description}`);
                 }
 
-                // Générer un ID unique pour l'entretoise
-                const entretoiseEntryId = 'entretoise-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
+                // CORRECTION 2: Générer un ID unique pour chaque entretoise individuellement
+                const entretoiseEntryId = 'entretoise-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
 
-                // Ajouter l'entretoise au tableau cumulé
+                // Ajouter l'entretoise au tableau cumulé avec la quantité correcte
                 window.cumulativeResults.push({
                     id: entretoiseEntryId,
                     site: site,
                     description: entretoise.description,
                     repere: repere,
-                    quantity: totalEntretoiseQuantity,  // Quantité totale calculée
-                    totalPrice: totalAmount,            // Prix unitaire (pas multiplié)
+                    quantity: entretoiseQuantity,  // CORRECTION 1: Quantité correcte
+                    totalPrice: totalAmount * entretoiseQuantity,  // Prix calculé avec la bonne quantité
                     isEntretoise: true,
                     linkedPanneau: panneau
                 });
 
-                console.log(`Entretoise ajoutée: ${repere} - ${entretoise.description}, quantité totale: ${totalEntretoiseQuantity}`);
+                console.log(`Entretoise ajoutée au tableau: ${repere} - ${entretoise.description}, quantité: ${entretoiseQuantity}`);
             });
-
-            console.log("=== FIN addEntretoisesToResults ===");
         }
 
 
@@ -2108,6 +2212,37 @@
             }
         }
 
+        // Fonction pour réinitialiser les entretoises lors du changement de panneau
+        function resetEntretoisesForNewPanneau(newPanneau) {
+            // Si c'est un nouveau panneau différent, réinitialiser complètement
+            if (currentPanneauWithEntretoises !== newPanneau) {
+                currentPanneauWithEntretoises = newPanneau;
+                selectedEntretoises = [];
+
+                const entretoisesList = getElement('entretoises-list');
+                if (entretoisesList) {
+                    entretoisesList.innerHTML = '';
+                }
+
+                const entretoisesSelected = getElement('entretoises-selected');
+                if (entretoisesSelected) {
+                    entretoisesSelected.style.display = 'none';
+                }
+
+                const entretoiseSelect = getElement('entretoise-select');
+                if (entretoiseSelect) {
+                    entretoiseSelect.value = '';
+                }
+
+                const quantityContainer = getElement('entretoise-quantity-container');
+                if (quantityContainer) {
+                    quantityContainer.style.display = 'none';
+                }
+
+                console.log(`Entretoises réinitialisées pour le nouveau panneau: ${newPanneau}`);
+            }
+        }
+
 // Fonction de calcul avec quantité
         function calculateWithQuantity() {
             const resultDiv = document.getElementById('site-result');
@@ -2132,11 +2267,33 @@
                 window.cumulativeResults = [];
             }
 
+            // CORRECTION 3: Traiter les entretoises AVANT de réinitialiser la liste
             if (shouldShowEntretoiseSelection() && selectedEntretoises.length > 0) {
                 addEntretoisesToResults(selectedSite, selectedRepere, quantity);
-            }
 
-            // Supprimer le code qui ajoutait automatiquement la ligne d'options de transport
+                // CORRECTION 4: Réinitialiser la liste des entretoises sélectionnées après ajout
+                selectedEntretoises = [];
+                const entretoisesList = getElement('entretoises-list');
+                if (entretoisesList) {
+                    entretoisesList.innerHTML = '';
+                }
+                const entretoisesSelected = getElement('entretoises-selected');
+                if (entretoisesSelected) {
+                    entretoisesSelected.style.display = 'none';
+                }
+
+                // Réinitialiser également le sélecteur d'entretoises
+                const entretoiseSelect = getElement('entretoise-select');
+                if (entretoiseSelect) {
+                    entretoiseSelect.value = '';
+                }
+
+                // Masquer le champ de quantité d'entretoises
+                const quantityContainer = getElement('entretoise-quantity-container');
+                if (quantityContainer) {
+                    quantityContainer.style.display = 'none';
+                }
+            }
 
             // Calculer le total pour les items filtrés avec la quantité
             let totalAmount = 0;
@@ -2148,7 +2305,7 @@
             const finalAmount = totalAmount * quantity;
 
             // Générer un ID unique pour l'entrée de produit
-            const productEntryId = 'product-' + Date.now();
+            const productEntryId = 'product-' + Date.now() + '-' + Math.floor(Math.random() * 1000);
 
             // Ajouter le produit au tableau cumulé
             window.cumulativeResults.push({
@@ -3594,6 +3751,10 @@
                         dechargement = "non";
                     }
                 });
+            });
+
+            document.getElementById('entretoise-select').addEventListener('change', function() {
+                handleEntretoiseSelection();
             });
 
             // Gestionnaires d'événements pour les boutons radio de déchargement
