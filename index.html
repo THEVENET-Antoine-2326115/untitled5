@@ -2124,62 +2124,54 @@
             updateResultsTable();
         }
 
-// Fonction pour ajouter les entretoises sélectionnées aux résultats
+        /**
+         * Version mise à jour de addEntretoisesToResults avec calcul du prix réel
+         */
         function addEntretoisesToResults(site, panneau, panneauQuantity) {
+            console.log(`=== AJOUT ENTRETOISES AVEC CALCUL PRIX ===`);
+            console.log(`Site: ${site}, Panneau: ${panneau}, Quantité panneaux: ${panneauQuantity}`);
+
             // Pour chaque entretoise sélectionnée, créer une ligne séparée
             selectedEntretoises.forEach(entretoise => {
-                // CORRECTION 1: Utiliser directement la quantité saisie par l'utilisateur
-                const entretoiseQuantity = entretoise.quantity; // Plus de calcul complexe
+                const entretoiseQuantityClient = entretoise.quantity;
 
-                console.log(`Ajout entretoise: ${entretoise.description}, quantité: ${entretoiseQuantity}`);
+                console.log(`Traitement entretoise: ${entretoise.description}, quantité client: ${entretoiseQuantityClient}`);
+
+                // NOUVEAU: Calculer le prix total réel avec les nouvelles fonctions
+                const prixTotalCalcule = calculateEntretoiseTotalPrice(
+                    entretoise.description,
+                    panneau,
+                    site,
+                    entretoiseQuantityClient
+                );
+
+                console.log(`Prix total calculé pour ${entretoise.description}: ${prixTotalCalcule} €`);
 
                 // Analyser la description pour extraire le repère si possible
                 let repere = entretoise.repere || "";
 
-                // Trouver le prix de cette entretoise dans les données
-                let totalAmount = 0;
-
-                // Récupérer les items pour le site sélectionné
-                let allItems = [];
-
-                // Cas spécial pour "BEAUCHASTEL / LOGIS - NEUF"
-                if (site === "BEAUCHASTEL / LOGIS - NEUF") {
-                    const itemsBeauchastel = allItemsBySite["BEAUCHASTEL"] || [];
-                    const itemsLogisNeuf = allItemsBySite["LOGIS-NEUF"] || [];
-                    allItems = [...itemsBeauchastel, ...itemsLogisNeuf];
-                } else {
-                    allItems = allItemsBySite[site] || [];
-                }
-
-                // Filtrer les items par description d'entretoise
-                const filteredItems = allItems.filter(item =>
-                    item.description === entretoise.description ||
-                    (repere && item.description && item.description.includes(repere))
-                );
-
-                if (filteredItems.length > 0) {
-                    filteredItems.forEach(item => {
-                        totalAmount += parseFloat(item.sousTotal) || 0;
-                    });
-                }
-
-                // CORRECTION 2: Générer un ID unique pour chaque entretoise individuellement
+                // Générer un ID unique pour chaque entretoise
                 const entretoiseEntryId = 'entretoise-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
 
-                // Ajouter l'entretoise au tableau cumulé avec la quantité correcte
+                // Ajouter l'entretoise au tableau cumulé avec le prix calculé
                 window.cumulativeResults.push({
                     id: entretoiseEntryId,
                     site: site,
                     description: entretoise.description,
                     repere: repere,
-                    quantity: entretoiseQuantity,  // CORRECTION 1: Quantité correcte
-                    totalPrice: totalAmount * entretoiseQuantity,  // Prix calculé avec la bonne quantité
+                    quantity: entretoiseQuantityClient,
+                    totalPrice: prixTotalCalcule,  // NOUVEAU: Prix calculé avec les nouvelles fonctions
                     isEntretoise: true,
-                    linkedPanneau: panneau
+                    linkedPanneau: panneau,
+                    // Informations supplémentaires pour debug/suivi
+                    prixUnitaireBPU: getEntretoisePrice(entretoise.description, site),
+                    quantiteNecessaire: getQuantiteNecessaireFromNomenclature(entretoise.description, panneau, site)
                 });
 
-                console.log(`Entretoise ajoutée au tableau: ${repere} - ${entretoise.description}, quantité: ${entretoiseQuantity}`);
+                console.log(`Entretoise ajoutée au tableau: ${entretoise.description}, prix total: ${prixTotalCalcule} €`);
             });
+
+            console.log(`=== FIN AJOUT ENTRETOISES ===`);
         }
 
 
@@ -2897,9 +2889,9 @@
          * @return {Object} Objet contenant les détails de tous les prix et le prix total
          */
         function calculerPrixTotal() {
-            console.log("=== DÉBUT DU CALCUL DU PRIX TOTAL ===");
+            console.log("=== DÉBUT DU CALCUL DU PRIX TOTAL (avec entretoises) ===");
 
-            // Calculer ou récupérer tous les prix
+            // Calculer tous les prix existants
             let prixForfaits = 0;
             try {
                 const resultForfaits = calculerEtAfficherForfaits();
@@ -2970,7 +2962,6 @@
                 console.error("Erreur lors du calcul du prix d'emballage:", error);
             }
 
-            // Ajouter le calcul du prix de montage
             let prixMontage = 0;
             try {
                 prixMontage = calculerPrixMontage() || 0;
@@ -2978,12 +2969,20 @@
                 console.error("Erreur lors du calcul du prix de montage des panneaux:", error);
             }
 
-            // Calculer le prix total
+            // NOUVEAU: Calculer le prix total des entretoises
+            let prixEntretoises = 0;
+            try {
+                prixEntretoises = calculerPrixEntretoises() || 0;
+            } catch (error) {
+                console.error("Erreur lors du calcul du prix des entretoises:", error);
+            }
+
+            // Calculer le prix total en incluant les entretoises
             const prixTotal = prixForfaits + prixSoudage +
                 prixTransportBarreaux + prixTransportPanneaux +
                 prixManutention + prixManutentionPanneaux +
                 prixGrutage + prixGrutagePanneaux +
-                prixEmballage + prixMontage;
+                prixEmballage + prixMontage + prixEntretoises;
 
             console.log("Détail des prix:");
             console.log(`- Forfaits (logistique et suivi): ${prixForfaits.toFixed(2)} €`);
@@ -2996,6 +2995,7 @@
             console.log(`- Grutage des panneaux: ${prixGrutagePanneaux.toFixed(2)} €`);
             console.log(`- Emballage: ${prixEmballage.toFixed(2)} €`);
             console.log(`- Montage des panneaux: ${prixMontage.toFixed(2)} €`);
+            console.log(`- ENTRETOISES: ${prixEntretoises.toFixed(2)} €`);  // NOUVEAU
             console.log(`PRIX TOTAL: ${prixTotal.toFixed(2)} €`);
             console.log("=== FIN DU CALCUL DU PRIX TOTAL ===");
 
@@ -3010,9 +3010,42 @@
                 prixGrutagePanneaux: prixGrutagePanneaux,
                 prixEmballage: prixEmballage,
                 prixMontage: prixMontage,
+                prixEntretoises: prixEntretoises,  // NOUVEAU
                 prixTotal: prixTotal
             };
         }
+
+        /**
+         * Calcule le prix total de toutes les entretoises dans le tableau récapitulatif
+         * @return {number} Prix total des entretoises
+         */
+        function calculerPrixEntretoises() {
+            console.log("=== DÉBUT DU CALCUL DU PRIX DES ENTRETOISES ===");
+
+            if (!window.cumulativeResults || window.cumulativeResults.length === 0) {
+                console.log("Prix entretoises: 0 € (aucune entretoise sélectionnée)");
+                return 0;
+            }
+
+            let prixTotalEntretoises = 0;
+
+            // Parcourir tous les éléments du tableau récapitulatif
+            window.cumulativeResults.forEach((result, index) => {
+                // Ne traiter que les entretoises
+                if (result.isEntretoise && result.totalPrice) {
+                    const prixEntretoise = parseFloat(result.totalPrice) || 0;
+                    prixTotalEntretoises += prixEntretoise;
+
+                    console.log(`Entretoise ${index}: ${result.description} - ${prixEntretoise.toFixed(2)} €`);
+                }
+            });
+
+            console.log(`Prix total des entretoises: ${prixTotalEntretoises.toFixed(2)} €`);
+            console.log("=== FIN DU CALCUL DU PRIX DES ENTRETOISES ===");
+
+            return prixTotalEntretoises;
+        }
+
 
         /**
          * Calcule le prix du transport des panneaux pour chaque site
@@ -3491,6 +3524,491 @@
             console.log("=== FIN DU CALCUL DU PRIX DE MONTAGE ===");
 
             return prixTotalMontage;
+        }
+
+        /**
+         * Nettoie le nom de l'entretoise pour la recherche dans le BPU
+         * @param {string} entretoiseName - Nom original de l'entretoise
+         * @return {string} Nom nettoyé pour la recherche
+         */
+        /**
+         * Version améliorée du nettoyage des noms d'entretoises
+         * Gère tous les types de préfixes possibles
+         */
+        function cleanEntretoiseName(entretoiseName) {
+            if (!entretoiseName) return '';
+
+            let cleaned = entretoiseName.trim();
+            console.log(`Nettoyage initial: "${entretoiseName}"`);
+
+            // Liste étendue des préfixes à enlever (du plus long au plus court pour éviter les conflits)
+            const prefixesToRemove = [
+                'ENTRETOISE ',
+                'ECROU ',
+                'PLAQUE ',
+                'BISAUTEE ',
+                'BISAUTÉE ',
+                'TIRANT ',
+                'CAPOT ',
+                'BARREAU ',
+                'ENT ',
+                'ENT.',
+                'PL ',
+                'PL.',
+                'ECR ',
+                'ECR.',
+                // Ajout de combinaisons communes
+                'PLAQUE BISAUTEE ',
+                'PLAQUE BISAUTÉE ',
+                'ECROU PLAQUE ',
+                'TIRANT CAPOT ',
+                'CAPOT BARREAU '
+            ];
+
+            // Nettoyer de manière itérative jusqu'à ce qu'aucun préfixe ne soit trouvé
+            let previousCleaned = '';
+            let iterations = 0;
+            const maxIterations = 10; // Éviter les boucles infinies
+
+            while (cleaned !== previousCleaned && iterations < maxIterations) {
+                previousCleaned = cleaned;
+                iterations++;
+
+                console.log(`  Itération ${iterations}: "${cleaned}"`);
+
+                // Essayer d'enlever chaque préfixe
+                for (const prefix of prefixesToRemove) {
+                    const upperCleaned = cleaned.toUpperCase();
+                    const upperPrefix = prefix.toUpperCase();
+
+                    if (upperCleaned.startsWith(upperPrefix)) {
+                        const newCleaned = cleaned.substring(prefix.length).trim();
+                        if (newCleaned.length > 0) { // S'assurer qu'il reste quelque chose
+                            cleaned = newCleaned;
+                            console.log(`    Préfixe "${prefix.trim()}" enlevé → "${cleaned}"`);
+                            break; // Recommencer depuis le début après chaque modification
+                        }
+                    }
+                }
+            }
+
+            // Nettoyage final : enlever les espaces multiples et caractères spéciaux en début/fin
+            cleaned = cleaned.replace(/\s+/g, ' ').trim();
+
+            console.log(`Nettoyage final: "${entretoiseName}" → "${cleaned}"`);
+            return cleaned;
+        }
+
+        /**
+         * Version alternative avec regex pour les cas complexes
+         */
+        function cleanEntretoiseNameAdvanced(entretoiseName) {
+            if (!entretoiseName) return '';
+
+            let cleaned = entretoiseName.trim();
+            console.log(`Nettoyage avancé initial: "${entretoiseName}"`);
+
+            // Patterns regex pour identifier et extraire la partie principale
+            const extractionPatterns = [
+                // Pattern pour capturer des codes alphanumériques (ex: "AZD 14", "DARC 2C")
+                /([A-Z]+\s*\d+[A-Z]*)/i,
+                /([A-Z]{2,}\s*[A-Z0-9]+)/i,
+                // Pattern pour capturer des références avec espaces
+                /([A-Z]+\s+[A-Z0-9]+\s*[A-Z]*)/i,
+                // Pattern pour capturer tout après le dernier préfixe connu
+                /(?:ENTRETOISE|ECROU|PLAQUE|BISAUTEE|BISAUTÉE|TIRANT|CAPOT|BARREAU)\s+(.+)/i
+            ];
+
+            // Essayer chaque pattern
+            for (const pattern of extractionPatterns) {
+                const match = cleaned.match(pattern);
+                if (match && match[1]) {
+                    const extracted = match[1].trim();
+                    if (extracted.length >= 3) { // Minimum 3 caractères pour être valide
+                        console.log(`Pattern trouvé: "${pattern}" → "${extracted}"`);
+                        cleaned = extracted;
+                        break;
+                    }
+                }
+            }
+
+            // Si aucun pattern ne fonctionne, utiliser la méthode traditionnelle
+            if (cleaned === entretoiseName.trim()) {
+                cleaned = cleanEntretoiseName(entretoiseName);
+            }
+
+            console.log(`Nettoyage avancé final: "${entretoiseName}" → "${cleaned}"`);
+            return cleaned;
+        }
+
+
+        /**
+         * Recherche le prix d'une entretoise dans le BPU pour un site donné
+         * @param {string} entretoiseName - Nom de l'entretoise à rechercher (ex: "DARC 2C")
+         * @param {string} siteName - Nom du site pour lequel chercher le prix
+         * @return {number|null} Le prix de l'entretoise ou null si non trouvé
+         */
+        function getEntretoisePrice(entretoiseName, siteName) {
+            console.log(`=== RECHERCHE PRIX ENTRETOISE ===`);
+            console.log(`Entretoise: "${entretoiseName}", Site: "${siteName}"`);
+
+            // NOUVEAU: Utiliser le nettoyage avancé
+            const cleanedEntretoiseName = cleanEntretoiseNameAdvanced(entretoiseName);
+            console.log(`Nom nettoyé: "${cleanedEntretoiseName}"`);
+
+            // Si le nettoyage avancé n'a pas donné de résultat satisfaisant, essayer le nettoyage simple
+            let alternativeName = '';
+            if (cleanedEntretoiseName === entretoiseName.trim()) {
+                alternativeName = cleanEntretoiseName(entretoiseName);
+                console.log(`Nom alternatif: "${alternativeName}"`);
+            }
+
+            // Vérifier que les données BPU sont disponibles
+            if (!filesDataGlobal || !filesDataGlobal.file1 || !filesDataGlobal.file1.data) {
+                console.warn("Données BPU non disponibles");
+                return null;
+            }
+
+            // Récupérer les données de la première (et unique) feuille du BPU
+            const bpuData = filesDataGlobal.file1.data;
+            const firstSheetName = Object.keys(bpuData)[0];
+            const sheetData = bpuData[firstSheetName];
+
+            if (!sheetData || sheetData.length === 0) {
+                console.warn("Feuille BPU vide");
+                return null;
+            }
+
+            console.log(`Recherche dans la feuille: ${firstSheetName} (${sheetData.length} lignes)`);
+
+            // Liste des noms à essayer (du plus spécifique au plus général)
+            const namesToTry = [cleanedEntretoiseName];
+            if (alternativeName && alternativeName !== cleanedEntretoiseName) {
+                namesToTry.push(alternativeName);
+            }
+
+            // Variables pour la recherche
+            let foundPrice = null;
+
+            // Essayer chaque nom nettoyé
+            for (const nameToSearch of namesToTry) {
+                if (!nameToSearch || nameToSearch.length < 2) continue;
+
+                console.log(`Essai de recherche avec: "${nameToSearch}"`);
+                let currentSearchRow = 0;
+
+                // Boucle de recherche pour ce nom
+                while (currentSearchRow < sheetData.length && foundPrice === null) {
+                    // Chercher la prochaine occurrence de l'entretoise dans la colonne A
+                    const entretoiseRowIndex = searchInBPU(nameToSearch, 0, currentSearchRow, sheetData);
+
+                    if (entretoiseRowIndex === -1) {
+                        console.log(`Aucune occurrence trouvée pour "${nameToSearch}"`);
+                        break;
+                    }
+
+                    console.log(`Entretoise trouvée à la ligne ${entretoiseRowIndex}: "${sheetData[entretoiseRowIndex][0]}"`);
+
+                    // Vérifier si cette occurrence correspond au bon site
+                    const siteFound = findSiteForRow(entretoiseRowIndex, siteName, sheetData);
+
+                    if (siteFound) {
+                        // Site correspondant trouvé, récupérer le prix en colonne I (index 8)
+                        const priceValue = sheetData[entretoiseRowIndex][8]; // Colonne I = index 8
+
+                        if (priceValue !== undefined && priceValue !== null && priceValue !== '') {
+                            // Convertir en nombre si nécessaire
+                            foundPrice = parseFloat(priceValue) || 0;
+                            console.log(`✓ Prix trouvé: ${foundPrice} € pour le site ${siteName} avec le nom "${nameToSearch}"`);
+                            break;
+                        } else {
+                            console.log(`Pas de prix en colonne I pour cette ligne`);
+                        }
+                    } else {
+                        console.log(`Site ${siteName} non trouvé pour cette occurrence`);
+                    }
+
+                    // Continuer la recherche depuis la ligne suivante
+                    currentSearchRow = entretoiseRowIndex + 1;
+                }
+
+                // Si on a trouvé un prix avec ce nom, arrêter la recherche
+                if (foundPrice !== null) {
+                    break;
+                }
+            }
+
+            if (foundPrice === null) {
+                console.log(`❌ Aucun prix trouvé pour l'entretoise "${entretoiseName}" sur le site "${siteName}"`);
+                console.log(`   Noms essayés:`, namesToTry);
+            }
+
+            console.log(`=== FIN RECHERCHE PRIX ENTRETOISE ===`);
+            return foundPrice;
+        }
+
+        /**
+         * Recherche un terme dans une colonne spécifique du BPU à partir d'une ligne donnée
+         * @param {string} searchTerm - Terme à rechercher
+         * @param {number} columnIndex - Index de la colonne à rechercher (0 pour colonne A)
+         * @param {number} startRow - Ligne de départ pour la recherche
+         * @param {Array} sheetData - Données de la feuille BPU
+         * @return {number} Index de la ligne trouvée ou -1 si non trouvé
+         */
+        function searchInBPU(searchTerm, columnIndex, startRow, sheetData) {
+            console.log(`Recherche de "${searchTerm}" en colonne ${columnIndex} à partir de la ligne ${startRow}`);
+
+            // Vérifier les paramètres
+            if (!searchTerm || !sheetData || startRow < 0) {
+                return -1;
+            }
+
+            // Normaliser le terme de recherche
+            const searchTermLower = searchTerm.toLowerCase().trim();
+
+            // Parcourir les lignes à partir de startRow
+            for (let rowIndex = startRow; rowIndex < sheetData.length; rowIndex++) {
+                const row = sheetData[rowIndex];
+
+                // Vérifier que la ligne et la colonne existent
+                if (!row || columnIndex >= row.length) {
+                    continue;
+                }
+
+                const cellValue = row[columnIndex];
+
+                // Vérifier que la cellule a une valeur
+                if (cellValue === undefined || cellValue === null) {
+                    continue;
+                }
+
+                // Convertir en string et normaliser
+                const cellValueStr = String(cellValue).toLowerCase().trim();
+
+                // Vérifier si le terme recherché est contenu dans la cellule
+                if (cellValueStr.includes(searchTermLower)) {
+                    console.log(`  ✓ Trouvé à la ligne ${rowIndex}: "${cellValue}"`);
+                    return rowIndex;
+                }
+            }
+
+            console.log(`  ❌ "${searchTerm}" non trouvé en colonne ${columnIndex}`);
+            return -1;
+        }
+
+        /**
+         * Remonte depuis une ligne donnée pour trouver le site correspondant
+         * @param {number} rowIndex - Index de la ligne de départ (ligne de l'entretoise)
+         * @param {string} siteName - Nom du site à rechercher
+         * @param {Array} sheetData - Données de la feuille BPU
+         * @return {boolean} true si le site correspond, false sinon
+         */
+        function findSiteForRow(rowIndex, siteName, sheetData) {
+            console.log(`  Recherche du site "${siteName}" en remontant depuis la ligne ${rowIndex}`);
+
+            // Vérifier les paramètres
+            if (rowIndex < 0 || !siteName || !sheetData) {
+                return false;
+            }
+
+            // Liste des sites connus du projet (réutiliser la liste existante)
+            const knownSites = [
+                "DTHR", "DTRS", "DTRI", "DTRM",
+                "SEYSSEL", "CHAUTAGNE_BELLEY_BREGNIER-CORDON", "CHAUTAGNE", "BELLEY", "BREGNIER-CORDON", "SAULT-BRENAZ",
+                "PIERRE-BENITE", "VAUGRIS", "PEAGE DE ROUSSILLON", "SAINT VALLIER", "ST VALLIER",
+                "BOURG-LES-VALENCE", "BEAUCHASTEL", "LOGIS-NEUF",
+                "MONTELIMAR", "DONZERE MONDRAGON",
+                "AVIGNON", "SAUVETERRE", "CADEROUSSE", "VALLABREGUES"
+            ];
+
+            // Normaliser le site recherché
+            const siteNameLower = siteName.toLowerCase().trim();
+
+            // Remonter ligne par ligne depuis rowIndex vers le haut
+            for (let currentRow = rowIndex; currentRow >= 0; currentRow--) {
+                const row = sheetData[currentRow];
+
+                // Vérifier que la ligne existe et a une colonne A
+                if (!row || row.length === 0) {
+                    continue;
+                }
+
+                const cellValue = row[0]; // Colonne A
+
+                // Vérifier que la cellule a une valeur
+                if (cellValue === undefined || cellValue === null) {
+                    continue;
+                }
+
+                const cellValueStr = String(cellValue).toLowerCase().trim();
+
+                // Vérifier si cette cellule contient un site connu
+                for (const knownSite of knownSites) {
+                    const knownSiteLower = knownSite.toLowerCase();
+
+                    if (cellValueStr.includes(knownSiteLower)) {
+                        console.log(`    Site trouvé à la ligne ${currentRow}: "${cellValue}" (${knownSite})`);
+
+                        // Vérifier si c'est le site recherché
+                        if (knownSiteLower === siteNameLower ||
+                            cellValueStr.includes(siteNameLower) ||
+                            siteNameLower.includes(knownSiteLower)) {
+
+                            console.log(`    ✓ Site correspondant trouvé: ${knownSite}`);
+                            return true;
+                        } else {
+                            console.log(`    ❌ Site différent: ${knownSite} ≠ ${siteName}`);
+                            // On a trouvé un site, mais ce n'est pas le bon
+                            // On arrête la recherche car on est dans une section différente
+                            return false;
+                        }
+                    }
+                }
+            }
+
+            console.log(`    ❌ Aucun site trouvé en remontant depuis la ligne ${rowIndex}`);
+            return false;
+        }
+
+        /**
+         * Calcule le prix total d'une entretoise en tenant compte des quantités
+         * @param {string} entretoiseName - Nom de l'entretoise (ex: "DARC 2C")
+         * @param {string} panneauName - Nom du panneau associé
+         * @param {string} siteName - Nom du site
+         * @param {number} quantiteClient - Quantité saisie par le client
+         * @return {number} Prix total calculé (prix unitaire × quantité à fournir)
+         */
+        function calculateEntretoiseTotalPrice(entretoiseName, panneauName, siteName, quantiteClient) {
+            console.log(`=== CALCUL PRIX TOTAL ENTRETOISE ===`);
+            console.log(`Entretoise: "${entretoiseName}"`);
+            console.log(`Panneau: "${panneauName}"`);
+            console.log(`Site: "${siteName}"`);
+            console.log(`Quantité client: ${quantiteClient}`);
+
+            // Étape 1: Récupérer le prix unitaire de l'entretoise depuis le BPU
+            const prixUnitaire = getEntretoisePrice(entretoiseName, siteName);
+            console.log(`Prix unitaire trouvé: ${prixUnitaire} €`);
+
+            if (prixUnitaire === null || prixUnitaire === 0) {
+                console.log(`❌ Pas de prix unitaire trouvé`);
+                return 0;
+            }
+
+            // Étape 2: Récupérer la quantité nécessaire depuis la nomenclature
+            const quantiteNecessaire = getQuantiteNecessaireFromNomenclature(entretoiseName, panneauName, siteName);
+            console.log(`Quantité nécessaire trouvée: ${quantiteNecessaire}`);
+
+            if (quantiteNecessaire === null || quantiteNecessaire === 0) {
+                console.log(`❌ Pas de quantité nécessaire trouvée`);
+                return 0;
+            }
+
+            // Étape 3: Calculer la quantité à fournir
+            const quantiteAFournir = quantiteNecessaire - quantiteClient;
+            console.log(`Quantité à fournir: ${quantiteNecessaire} - ${quantiteClient} = ${quantiteAFournir}`);
+
+            // Étape 4: Calculer le prix total
+            const prixTotal = prixUnitaire * quantiteAFournir;
+            console.log(`Prix total: ${prixUnitaire} € × ${quantiteAFournir} = ${prixTotal} €`);
+
+            console.log(`=== FIN CALCUL PRIX TOTAL ENTRETOISE ===`);
+            return prixTotal;
+        }
+
+        /**
+         * Récupère la quantité nécessaire d'une entretoise depuis la nomenclature
+         * @param {string} entretoiseName - Nom de l'entretoise
+         * @param {string} panneauName - Nom du panneau associé
+         * @param {string} siteName - Nom du site
+         * @return {number|null} Quantité nécessaire ou null si non trouvée
+         */
+        function getQuantiteNecessaireFromNomenclature(entretoiseName, panneauName, siteName) {
+            console.log(`  Recherche quantité nécessaire pour: ${entretoiseName}`);
+
+            // Utiliser les données de nomenclature déjà extraites dans entretoisesParPanneaux
+            if (!entretoisesParPanneaux || Object.keys(entretoisesParPanneaux).length === 0) {
+                console.log(`  ❌ Données de nomenclature non disponibles`);
+                return null;
+            }
+
+            // Construire les clés possibles pour ce panneau/site
+            const possibleKeys = buildPossibleKeys(siteName, panneauName);
+            console.log(`  Clés possibles:`, possibleKeys);
+
+            // Chercher dans toutes les clés possibles
+            for (const key of possibleKeys) {
+                if (entretoisesParPanneaux[key]) {
+                    const entretoises = entretoisesParPanneaux[key];
+                    console.log(`  Recherche dans la clé: ${key} (${entretoises.length} entretoises)`);
+
+                    // Chercher l'entretoise par nom
+                    for (const entretoise of entretoises) {
+                        if (entretoise.nom && entretoise.nom.toLowerCase().includes(entretoiseName.toLowerCase())) {
+                            console.log(`  ✓ Entretoise trouvée: ${entretoise.nom}, QTE: ${entretoise.quantite}`);
+                            return entretoise.quantite || 1;
+                        }
+                    }
+                }
+            }
+
+            console.log(`  ❌ Quantité nécessaire non trouvée pour ${entretoiseName}`);
+            return null;
+        }
+
+        /**
+         * Construit les clés possibles pour rechercher dans entretoisesParPanneaux
+         * @param {string} siteName - Nom du site
+         * @param {string} panneauName - Nom du panneau
+         * @return {Array} Liste des clés possibles
+         */
+        function buildPossibleKeys(siteName, panneauName) {
+            const keys = [];
+
+            // Normaliser les noms
+            const siteNormalized = siteName.toUpperCase().trim();
+            const panneauNormalized = panneauName.toUpperCase().trim();
+
+            // Clé directe
+            keys.push(`${siteNormalized}|${panneauNormalized}`);
+
+            // Gestion des sites combinés
+            if (siteNormalized === "CHAUTAGNE_BELLEY_BREGNIER-CORDON" ||
+                siteNormalized === "CHAUTAGNE" ||
+                siteNormalized === "BELLEY" ||
+                siteNormalized === "BREGNIER-CORDON") {
+
+                const combinedSites = ["CHAUTAGNE", "BELLEY", "BREGNIER-CORDON", "CHAUTAGNE_BELLEY_BREGNIER-CORDON"];
+                for (const site of combinedSites) {
+                    keys.push(`${site}|${panneauNormalized}`);
+                }
+            }
+
+            // Cas spécial pour BEAUCHASTEL / LOGIS - NEUF
+            if (siteNormalized === "BEAUCHASTEL / LOGIS - NEUF") {
+                keys.push(`BEAUCHASTEL|${panneauNormalized}`);
+                keys.push(`LOGIS-NEUF|${panneauNormalized}`);
+            }
+
+            // Variantes des noms de panneaux
+            if (panneauNormalized.includes("INFERIEUR") || panneauNormalized.includes("INF")) {
+                keys.push(`${siteNormalized}|PANNEAU INFERIEUR`);
+                keys.push(`${siteNormalized}|PANNEAU INF`);
+            }
+
+            if (panneauNormalized.includes("SUPERIEUR") || panneauNormalized.includes("SUP")) {
+                keys.push(`${siteNormalized}|PANNEAU SUPERIEUR`);
+                keys.push(`${siteNormalized}|PANNEAU SUP`);
+            }
+
+            // Cas spécial AVIGNON G1, G2, etc.
+            if (siteNormalized === "AVIGNON") {
+                const panneauCodeMatch = panneauNormalized.match(/G\d+/i);
+                if (panneauCodeMatch) {
+                    keys.push(`AVIGNON|${panneauCodeMatch[0].toUpperCase()}`);
+                }
+            }
+
+            return keys;
         }
 
 // Fonction pour mettre à jour l'affichage du tableau de résultats
@@ -4270,19 +4788,33 @@
          * @returns {Object} Un objet contenant les différents prix calculés avec détails
          */
         function collectPriceData() {
-            // Calculer les prix
+            // Calculer les prix avec les entretoises incluses
             const priceDetails = calculerPrixTotal();
 
             // Calculer le nombre total de panneaux SEULEMENT (pas les entretoises)
             let totalPanneaux = 0;
             let nbPanneauxSupStVallier = 0;
             let detailMontage = [];
+            let detailEntretoises = [];  // Détail des entretoises pour l'export
 
-            // Compter les panneaux par type et site
+            // Compter les panneaux par type et site, et collecter les entretoises
             if (window.cumulativeResults) {
                 for (const result of window.cumulativeResults) {
-                    // NE COMPTER QUE LES PANNEAUX (ignorer les options ET les entretoises)
-                    if (!result.isTransportOnly && !result.isEntretoise && result.quantity) {
+                    if (result.isEntretoise) {
+                        // Collecter les détails des entretoises pour l'export Excel
+                        detailEntretoises.push({
+                            site: result.site,
+                            description: result.description,
+                            quantity: result.quantity,
+                            prixUnitaire: result.prixUnitaireBPU || 0,
+                            quantiteNecessaire: result.quantiteNecessaire || 0,
+                            quantiteClient: result.quantity || 0,
+                            quantiteAFournir: (result.quantiteNecessaire || 0) - (result.quantity || 0),
+                            prixTotal: result.totalPrice || 0,
+                            linkedPanneau: result.linkedPanneau || ''
+                        });
+                    } else if (!result.isTransportOnly && result.quantity) {
+                        // Traitement des panneaux (code existant)
                         const quantity = parseInt(result.quantity, 10);
                         totalPanneaux += quantity;
 
@@ -4302,7 +4834,6 @@
 
                         // Ajouter les détails de montage SEULEMENT pour les panneaux
                         if (quantity > 0 && result.totalPrice > 0) {
-                            // Calculer le prix unitaire en divisant le prix total par la quantité
                             const prixUnitaire = result.totalPrice / quantity;
                             detailMontage.push({
                                 site: result.site,
@@ -4316,7 +4847,7 @@
                 }
             }
 
-            // Collecter les détails des forfaits logistique et suivi (avec le bon nombre de panneaux)
+            // Collecter les détails des forfaits (code existant)
             const forfaitLogistique = {
                 prixUnitaire: calculerForfaitLogistique(totalPanneaux).toFixed(2).replace('.', ','),
                 montant: calculerForfaitLogistique(totalPanneaux) * totalPanneaux
@@ -4327,7 +4858,7 @@
                 montant: calculerForfaitSuivi(totalPanneaux) * totalPanneaux
             };
 
-            // Collecter tous les détails de transport, manutention et grutage
+            // Collecter tous les détails (code existant)
             const transportBarreaux = calculerPrixTransportBarreaux();
             const transportPanneaux = calculerPrixTransportPanneaux();
             const manutention = calculerPrixManutention();
@@ -4335,9 +4866,29 @@
             const grutage = calculerPrixGrutage();
             const grutagePanneaux = calculerPrixGrutagePanneaux();
 
-            console.log(`Export: Total panneaux pour forfaits/emballage: ${totalPanneaux}`);
+            // NOUVEAU: Calculer les totaux pour les entretoises pour le récapitulatif détaillé
+            let totalQuantiteEntretoises = 0;
+            let totalQuantiteAFournirEntretoises = 0;
+            let prixMoyenEntretoises = 0;
+
+            if (detailEntretoises.length > 0) {
+                let sommePrixUnitaires = 0;
+
+                detailEntretoises.forEach(entretoise => {
+                    totalQuantiteEntretoises += entretoise.quantiteClient;
+                    totalQuantiteAFournirEntretoises += entretoise.quantiteAFournir;
+                    sommePrixUnitaires += entretoise.prixUnitaire;
+                });
+
+                // Prix moyen pondéré des entretoises
+                prixMoyenEntretoises = detailEntretoises.length > 0 ? (sommePrixUnitaires / detailEntretoises.length) : 0;
+            }
+
+            console.log(`Export: Total panneaux: ${totalPanneaux}, Entretoises: ${detailEntretoises.length}`);
+            console.log(`Export entretoises: Quantité client: ${totalQuantiteEntretoises}, À fournir: ${totalQuantiteAFournirEntretoises}, Prix moyen: ${prixMoyenEntretoises.toFixed(2)} €`);
 
             return {
+                // Prix existants
                 prixForfaits: priceDetails.prixForfaits || 0,
                 prixSoudage: priceDetails.prixSoudage || 0,
                 prixTransportBarreaux: priceDetails.prixTransportBarreaux || 0,
@@ -4348,10 +4899,11 @@
                 prixGrutagePanneaux: priceDetails.prixGrutagePanneaux || 0,
                 prixEmballage: priceDetails.prixEmballage || 0,
                 prixMontage: priceDetails.prixMontage || 0,
+                prixEntretoises: priceDetails.prixEntretoises || 0,
                 prixTotal: priceDetails.prixTotal || 0,
 
-                // Données détaillées pour les calculs (avec le bon nombre de panneaux)
-                totalPanneaux: totalPanneaux,  // ← SEULEMENT LES PANNEAUX
+                // Données détaillées existantes
+                totalPanneaux: totalPanneaux,
                 nbPanneauxSupStVallier: nbPanneauxSupStVallier,
                 forfaitLogistique: forfaitLogistique,
                 forfaitSuivi: forfaitSuivi,
@@ -4361,7 +4913,17 @@
                 manutentionPanneaux: manutentionPanneaux,
                 grutage: grutage,
                 grutagePanneaux: grutagePanneaux,
-                detailMontage: detailMontage
+                detailMontage: detailMontage,
+                detailEntretoises: detailEntretoises,
+
+                // NOUVEAU: Données consolidées pour le récapitulatif détaillé des entretoises
+                entretoisesSummary: {
+                    totalQuantiteClient: totalQuantiteEntretoises,
+                    totalQuantiteAFournir: totalQuantiteAFournirEntretoises,
+                    prixMoyenUnitaire: prixMoyenEntretoises,
+                    nombreEntretoises: detailEntretoises.length,
+                    montantTotal: priceDetails.prixEntretoises || 0
+                }
             };
         }
 

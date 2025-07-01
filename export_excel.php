@@ -297,6 +297,64 @@ try {
         number_format((float)($data['prices']['prixEmballage'] ?? 0), 2, ',', ' ')
     ];
 
+// 11. Entretoises fournies
+    if (isset($data['prices']['entretoisesSummary']) && $data['prices']['entretoisesSummary']['nombreEntretoises'] > 0) {
+        $entretoises = $data['prices']['entretoisesSummary'];
+
+        // Construire la formule explicative détaillée
+        $formuleEntretoises = "";
+        $detailsFormule = [];
+
+        if (isset($data['prices']['detailEntretoises']) && !empty($data['prices']['detailEntretoises'])) {
+            foreach ($data['prices']['detailEntretoises'] as $entretoise) {
+                // Nettoyer le nom de l'entretoise (enlever "ENTRETOISE ")
+                $cleanName = $entretoise['description'];
+                if (strpos(strtoupper($cleanName), 'ENTRETOISE ') === 0) {
+                    $cleanName = substr($cleanName, 11); // Enlever "ENTRETOISE "
+                }
+
+                $qteFournir = intval($entretoise['quantiteAFournir']);
+                $prixUnit = floatval($entretoise['prixUnitaire']);
+
+                // Ajouter seulement si la quantité à fournir est positive
+                if ($qteFournir > 0) {
+                    $detailsFormule[] = $cleanName . ": " . $qteFournir . " × " . number_format($prixUnit, 2, ',', ' ') . " €";
+                }
+            }
+
+            if (!empty($detailsFormule)) {
+                $formuleEntretoises = implode(' + ', $detailsFormule);
+            }
+        }
+
+        // Si aucun détail ou formule trop longue, utiliser une version simplifiée
+        if (empty($formuleEntretoises) || strlen($formuleEntretoises) > 150) {
+            $totalQteFournir = intval($entretoises['totalQuantiteAFournir']);
+            $prixMoyen = floatval($entretoises['prixMoyenUnitaire']);
+
+            if ($totalQteFournir > 0) {
+                $formuleEntretoises = $totalQteFournir . " entretoises × prix moyen " .
+                    number_format($prixMoyen, 2, ',', ' ') . " €";
+            } else {
+                $formuleEntretoises = "Aucune entretoise à fournir";
+            }
+        }
+
+        // Ajouter la ligne au tableau des prix seulement si il y a des entretoises à fournir
+        $montantTotal = floatval($entretoises['montantTotal']);
+        if ($montantTotal > 0) {
+            $priceData[] = [
+                'Entretoises fournies',                                        // Désignation
+                strval($entretoises['totalQuantiteClient']),                   // Quantité (client)
+                '',                                                            // Nombre camion (vide)
+                '',                                                            // Nombre Demi-journée (vide)
+                number_format($entretoises['prixMoyenUnitaire'], 2, ',', ' '), // Prix unitaire moyen
+                $formuleEntretoises,                                           // Formule de calcul
+                number_format($montantTotal, 2, ',', ' ')                      // Montant total
+            ];
+        }
+    }
+
     // 11. Montage des panneaux
     if (isset($data['prices']['detailMontage']) && !empty($data['prices']['detailMontage'])) {
         foreach ($data['prices']['detailMontage'] as $montage) {
