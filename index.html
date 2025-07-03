@@ -594,8 +594,9 @@
         <div>
             <label for="quantity-input">Quantité:</label>
             <input type="number" id="quantity-input" class="search-input" min="1" value="1">
+            <button id="calculate-button" class="search-button">Valider (soyez sûr d'avoir finalisé votre commande)</button>
         </div>
-        <button id="calculate-button" class="search-button">Valider</button>
+
     </div>
 
     <!-- Sélection d'entretoises spécifiques (initialement masquée) -->
@@ -617,6 +618,7 @@
             </div>
             <button id="add-entretoise-button" class="search-button">Ajouter entretoise</button>
         </div>
+
 
         <div id="entretoises-selected" style="margin-top: 15px; display: none;">
             <div class="search-title">Entretoises sélectionnées</div>
@@ -2012,7 +2014,7 @@
                 const entretoise = {
                     description: selectedEntretoise,
                     repere: repere,
-                    quantity: quantity,  // Quantité saisie par l'utilisateur (plus de calcul complexe)
+                    quantity: quantity,
                     id: 'entretoise-' + Date.now()
                 };
 
@@ -2032,6 +2034,9 @@
             if (quantityContainer) {
                 quantityContainer.style.display = 'none';
             }
+
+            // NOUVEAU: Mettre à jour l'affichage informatif des entretoises
+            updateEntretoiseInfoExtended();
         }
 
 // Fonction pour valider les options de transport pour un site
@@ -2124,55 +2129,7 @@
             updateResultsTable();
         }
 
-        /**
-         * Version mise à jour de addEntretoisesToResults avec calcul du prix réel
-         */
-        function addEntretoisesToResults(site, panneau, panneauQuantity) {
-            console.log(`=== AJOUT ENTRETOISES AVEC CALCUL PRIX ===`);
-            console.log(`Site: ${site}, Panneau: ${panneau}, Quantité panneaux: ${panneauQuantity}`);
 
-            // Pour chaque entretoise sélectionnée, créer une ligne séparée
-            selectedEntretoises.forEach(entretoise => {
-                const entretoiseQuantityClient = entretoise.quantity;
-
-                console.log(`Traitement entretoise: ${entretoise.description}, quantité client: ${entretoiseQuantityClient}`);
-
-                // NOUVEAU: Calculer le prix total réel avec les nouvelles fonctions
-                const prixTotalCalcule = calculateEntretoiseTotalPrice(
-                    entretoise.description,
-                    panneau,
-                    site,
-                    entretoiseQuantityClient
-                );
-
-                console.log(`Prix total calculé pour ${entretoise.description}: ${prixTotalCalcule} €`);
-
-                // Analyser la description pour extraire le repère si possible
-                let repere = entretoise.repere || "";
-
-                // Générer un ID unique pour chaque entretoise
-                const entretoiseEntryId = 'entretoise-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
-
-                // Ajouter l'entretoise au tableau cumulé avec le prix calculé
-                window.cumulativeResults.push({
-                    id: entretoiseEntryId,
-                    site: site,
-                    description: entretoise.description,
-                    repere: repere,
-                    quantity: entretoiseQuantityClient,
-                    totalPrice: prixTotalCalcule,  // NOUVEAU: Prix calculé avec les nouvelles fonctions
-                    isEntretoise: true,
-                    linkedPanneau: panneau,
-                    // Informations supplémentaires pour debug/suivi
-                    prixUnitaireBPU: getEntretoisePrice(entretoise.description, site),
-                    quantiteNecessaire: getQuantiteNecessaireFromNomenclature(entretoise.description, panneau, site)
-                });
-
-                console.log(`Entretoise ajoutée au tableau: ${entretoise.description}, prix total: ${prixTotalCalcule} €`);
-            });
-
-            console.log(`=== FIN AJOUT ENTRETOISES ===`);
-        }
 
 
 
@@ -2204,6 +2161,141 @@
             }
         }
 
+        /**
+         * Met à jour l'affichage informatif des entretoises sélectionnées
+         * Cette fonction affiche une liste simple sous le sélecteur d'entretoises
+         */
+        function updateEntretoisesDisplay() {
+            console.log("Mise à jour de l'affichage des entretoises sélectionnées");
+
+            const entretoisesSelectedDiv = getElement('entretoises-selected');
+            const entretoisesList = getElement('entretoises-list');
+
+            if (!entretoisesSelectedDiv || !entretoisesList) {
+                console.log("Éléments d'affichage des entretoises non trouvés");
+                return;
+            }
+
+            // Vider la liste actuelle
+            entretoisesList.innerHTML = '';
+
+            // Si aucune entretoise sélectionnée, masquer la section
+            if (!selectedEntretoises || selectedEntretoises.length === 0) {
+                entretoisesSelectedDiv.style.display = 'none';
+                console.log("Aucune entretoise sélectionnée, masquage de l'affichage");
+                return;
+            }
+
+            // Afficher la section et remplir la liste
+            entretoisesSelectedDiv.style.display = 'block';
+
+            selectedEntretoises.forEach((entretoise, index) => {
+                const entretoiseItem = createEntretoiseDisplayItem(entretoise, index);
+                entretoisesList.appendChild(entretoiseItem);
+            });
+
+            console.log(`Affichage mis à jour avec ${selectedEntretoises.length} entretoise(s)`);
+        }
+
+        /**
+         * Crée un élément d'affichage pour une entretoise sélectionnée
+         * @param {Object} entretoise - L'entretoise à afficher
+         * @param {number} index - Index de l'entretoise dans la liste
+         * @return {HTMLElement} Élément DOM à ajouter à la liste
+         */
+        function createEntretoiseDisplayItem(entretoise, index) {
+            // Créer l'élément li
+            const listItem = document.createElement('li');
+            listItem.style.cssText = `
+        padding: 8px 12px;
+        margin: 4px 0;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        font-size: 14px;
+        color: #495057;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    `;
+
+            // Nettoyer le nom de l'entretoise pour l'affichage
+            const cleanName = cleanEntretoiseNameForDisplay(entretoise.description);
+
+            // Créer le contenu principal
+            const mainContent = document.createElement('span');
+            mainContent.innerHTML = `
+        <strong>${escapeHtml(cleanName)}</strong>
+        <span style="color: #6c757d; margin-left: 8px;">Quantité: ${entretoise.quantity}</span>
+    `;
+
+            // Créer l'indicateur de statut (optionnel)
+            const statusIndicator = document.createElement('span');
+            statusIndicator.style.cssText = `
+        font-size: 12px;
+        color: #28a745;
+        font-weight: bold;
+    `;
+            statusIndicator.textContent = '✓';
+
+            // Assembler l'élément
+            listItem.appendChild(mainContent);
+            listItem.appendChild(statusIndicator);
+
+            return listItem;
+        }
+
+        /**
+         * Nettoie le nom de l'entretoise pour un affichage plus lisible
+         * @param {string} entretoiseDescription - Description complète de l'entretoise
+         * @return {string} Nom nettoyé pour l'affichage
+         */
+        function cleanEntretoiseNameForDisplay(entretoiseDescription) {
+            if (!entretoiseDescription) return '';
+
+            let cleanName = entretoiseDescription.trim();
+
+            // Enlever le préfixe "ENTRETOISE" s'il existe (comme dans les autres fonctions)
+            if (cleanName.toUpperCase().startsWith('ENTRETOISE ')) {
+                cleanName = cleanName.substring(11);
+            }
+
+            return cleanName;
+        }
+
+        /**
+         * Met à jour l'affichage des informations sur les entretoises et le panneau
+         * Cette fonction remplace updateEntretoiseInfo() avec plus de détails
+         */
+        function updateEntretoiseInfoExtended() {
+            const infoElement = getElement('entretoise-info');
+            if (!infoElement) return;
+
+            const quantityInput = getElement('quantity-input');
+            const panneauQuantity = quantityInput ? (parseInt(quantityInput.value) || 1) : 1;
+
+            let infoText = '';
+
+            if (!selectedEntretoises || selectedEntretoises.length === 0) {
+                infoText = `Veuillez sélectionner une pièce pour ce panneau (quantité de panneaux: ${panneauQuantity}).`;
+            } else {
+                let totalPieces = 0;
+                selectedEntretoises.forEach(entretoise => {
+                    totalPieces += entretoise.quantity;
+                });
+
+                const plurielType = selectedEntretoises.length > 1 ? 'types' : 'type';
+                const plurielPiece = totalPieces > 1 ? 'pièces' : 'pièce';
+
+                infoText = `${selectedEntretoises.length} ${plurielType} de pièces sélectionné(s) pour un total de ${totalPieces} ${plurielPiece}.`;
+            }
+
+            infoElement.textContent = infoText;
+
+            // Mettre à jour également l'affichage des entretoises
+            updateEntretoisesDisplay();
+        }
+
         // Fonction pour réinitialiser les entretoises lors du changement de panneau
         function resetEntretoisesForNewPanneau(newPanneau) {
             // Si c'est un nouveau panneau différent, réinitialiser complètement
@@ -2211,14 +2303,15 @@
                 currentPanneauWithEntretoises = newPanneau;
                 selectedEntretoises = [];
 
-                const entretoisesList = getElement('entretoises-list');
-                if (entretoisesList) {
-                    entretoisesList.innerHTML = '';
-                }
-
+                // Réinitialiser l'affichage des entretoises sélectionnées
                 const entretoisesSelected = getElement('entretoises-selected');
                 if (entretoisesSelected) {
                     entretoisesSelected.style.display = 'none';
+                }
+
+                const entretoisesList = getElement('entretoises-list');
+                if (entretoisesList) {
+                    entretoisesList.innerHTML = '';
                 }
 
                 const entretoiseSelect = getElement('entretoise-select');
@@ -2231,7 +2324,10 @@
                     quantityContainer.style.display = 'none';
                 }
 
-                console.log(`Entretoises réinitialisées pour le nouveau panneau: ${newPanneau}`);
+                // Mettre à jour l'affichage des informations
+                updateEntretoiseInfoExtended();
+
+                console.log(`Entretoises et affichage réinitialisés pour le nouveau panneau: ${newPanneau}`);
             }
         }
 
@@ -3652,17 +3748,11 @@
             console.log(`=== RECHERCHE PRIX ENTRETOISE ===`);
             console.log(`Entretoise: "${entretoiseName}", Site: "${siteName}"`);
 
-            // NOUVEAU: Utiliser le nettoyage avancé
+            // Nettoyer le nom de l'entretoise
             const cleanedEntretoiseName = cleanEntretoiseNameAdvanced(entretoiseName);
             console.log(`Nom nettoyé: "${cleanedEntretoiseName}"`);
 
-            // Si le nettoyage avancé n'a pas donné de résultat satisfaisant, essayer le nettoyage simple
-            let alternativeName = '';
-            if (cleanedEntretoiseName === entretoiseName.trim()) {
-                alternativeName = cleanEntretoiseName(entretoiseName);
-                console.log(`Nom alternatif: "${alternativeName}"`);
-            }
-
+            // [Le code de recherche reste identique...]
             // Vérifier que les données BPU sont disponibles
             if (!filesDataGlobal || !filesDataGlobal.file1 || !filesDataGlobal.file1.data) {
                 console.warn("Données BPU non disponibles");
@@ -3683,6 +3773,7 @@
 
             // Liste des noms à essayer (du plus spécifique au plus général)
             const namesToTry = [cleanedEntretoiseName];
+            let alternativeName = cleanEntretoiseName(entretoiseName);
             if (alternativeName && alternativeName !== cleanedEntretoiseName) {
                 namesToTry.push(alternativeName);
             }
@@ -3699,7 +3790,6 @@
 
                 // Boucle de recherche pour ce nom
                 while (currentSearchRow < sheetData.length && foundPrice === null) {
-                    // Chercher la prochaine occurrence de l'entretoise dans la colonne A
                     const entretoiseRowIndex = searchInBPU(nameToSearch, 0, currentSearchRow, sheetData);
 
                     if (entretoiseRowIndex === -1) {
@@ -3709,16 +3799,14 @@
 
                     console.log(`Entretoise trouvée à la ligne ${entretoiseRowIndex}: "${sheetData[entretoiseRowIndex][0]}"`);
 
-                    // Vérifier si cette occurrence correspond au bon site
                     const siteFound = findSiteForRow(entretoiseRowIndex, siteName, sheetData);
 
                     if (siteFound) {
-                        // Site correspondant trouvé, récupérer le prix en colonne I (index 8)
                         const priceValue = sheetData[entretoiseRowIndex][8]; // Colonne I = index 8
 
                         if (priceValue !== undefined && priceValue !== null && priceValue !== '') {
-                            // Convertir en nombre si nécessaire
-                            foundPrice = parseFloat(priceValue) || 0;
+                            // NOUVEAU: Fixer la précision à exactement 2 décimales
+                            foundPrice = parseFloat((parseFloat(priceValue) || 0).toFixed(2));
                             console.log(`✓ Prix trouvé: ${foundPrice} € pour le site ${siteName} avec le nom "${nameToSearch}"`);
                             break;
                         } else {
@@ -3728,11 +3816,9 @@
                         console.log(`Site ${siteName} non trouvé pour cette occurrence`);
                     }
 
-                    // Continuer la recherche depuis la ligne suivante
                     currentSearchRow = entretoiseRowIndex + 1;
                 }
 
-                // Si on a trouvé un prix avec ce nom, arrêter la recherche
                 if (foundPrice !== null) {
                     break;
                 }
@@ -3871,49 +3957,250 @@
         }
 
         /**
-         * Calcule le prix total d'une entretoise en tenant compte des quantités
-         * @param {string} entretoiseName - Nom de l'entretoise (ex: "DARC 2C")
-         * @param {string} panneauName - Nom du panneau associé
+         * Version mise à jour de calculateEntretoiseTotalPrice  pour calculer TOUTES les entretoises d'un panneau
+         * @param {string} panneauName - Nom du panneau
          * @param {string} siteName - Nom du site
-         * @param {number} quantiteClient - Quantité saisie par le client
-         * @return {number} Prix total calculé (prix unitaire × quantité à fournir)
+         * @return {number} Prix total de TOUTES les entretoises que CNR doit fournir pour ce panneau
          */
-        function calculateEntretoiseTotalPrice(entretoiseName, panneauName, siteName, quantiteClient) {
-            console.log(`=== CALCUL PRIX TOTAL ENTRETOISE ===`);
-            console.log(`Entretoise: "${entretoiseName}"`);
+        function calculateEntretoisesTotalPrice(panneauName, siteName, quantitePanneaux) {
+            console.log(`=== CALCUL PRIX TOTAL TOUTES ENTRETOISES PANNEAU ===`);
             console.log(`Panneau: "${panneauName}"`);
             console.log(`Site: "${siteName}"`);
-            console.log(`Quantité client: ${quantiteClient}`);
+            console.log(`Quantité de panneaux: ${quantitePanneaux}`);
 
-            // Étape 1: Récupérer le prix unitaire de l'entretoise depuis le BPU
-            const prixUnitaire = getEntretoisePrice(entretoiseName, siteName);
-            console.log(`Prix unitaire trouvé: ${prixUnitaire} €`);
+            // Étape 1: Récupérer TOUTES les entretoises nécessaires pour ce panneau
+            const toutesEntretoises = getAllEntretoisesForPanneau(panneauName, siteName);
+            console.log(`Entretoises nécessaires trouvées: ${toutesEntretoises.length}`);
 
-            if (prixUnitaire === null || prixUnitaire === 0) {
-                console.log(`❌ Pas de prix unitaire trouvé`);
+            if (toutesEntretoises.length === 0) {
+                console.log("Aucune entretoise nécessaire trouvée pour ce panneau");
                 return 0;
             }
 
-            // Étape 2: Récupérer la quantité nécessaire depuis la nomenclature
-            const quantiteNecessaire = getQuantiteNecessaireFromNomenclature(entretoiseName, panneauName, siteName);
-            console.log(`Quantité nécessaire trouvée: ${quantiteNecessaire}`);
+            let prixTotalPanneau = 0;
 
-            if (quantiteNecessaire === null || quantiteNecessaire === 0) {
-                console.log(`❌ Pas de quantité nécessaire trouvée`);
-                return 0;
-            }
+            // Étape 2: Pour chaque entretoise nécessaire, calculer ce que CNR doit fournir
+            toutesEntretoises.forEach((entretoiseNecessaire, index) => {
+                console.log(`\n--- Entretoise ${index + 1}: ${entretoiseNecessaire.nom} ---`);
 
-            // Étape 3: Calculer la quantité à fournir
-            const quantiteAFournir = quantiteNecessaire - quantiteClient;
-            console.log(`Quantité à fournir: ${quantiteNecessaire} - ${quantiteClient} = ${quantiteAFournir}`);
+                // Vérifier si l'utilisateur fournit cette entretoise
+                const entretoiseFournieParUser = selectedEntretoises.find(selected =>
+                    selected.description.toLowerCase().includes(entretoiseNecessaire.nom.toLowerCase()) ||
+                    cleanEntretoiseNameForDisplay(selected.description).toLowerCase() === entretoiseNecessaire.nom.toLowerCase()
+                );
 
-            // Étape 4: Calculer le prix total
-            const prixTotal = prixUnitaire * quantiteAFournir;
-            console.log(`Prix total: ${prixUnitaire} € × ${quantiteAFournir} = ${prixTotal} €`);
+                let quantiteFournieParUser = 0;
+                if (entretoiseFournieParUser) {
+                    quantiteFournieParUser = entretoiseFournieParUser.quantity || 0;
+                    console.log(`  Quantité fournie par utilisateur: ${quantiteFournieParUser}`);
+                } else {
+                    console.log(`  Pas fournie par utilisateur`);
+                }
 
-            console.log(`=== FIN CALCUL PRIX TOTAL ENTRETOISE ===`);
-            return prixTotal;
+                // Calculer la quantité que CNR doit fournir POR UN SEUL panneau
+                const quantiteNecessaireParPanneau = entretoiseNecessaire.quantite || 0;
+                const quantiteAFournirParCNRParPanneau = Math.max(0, quantiteNecessaireParPanneau - quantiteFournieParUser);
+
+                // NOUVEAU: Multiplier par la quantité de panneaux
+                const quantiteAFournirParCNRTotal = quantiteAFournirParCNRParPanneau * quantitePanneaux;
+
+                console.log(`  Quantité nécessaire par panneau: ${quantiteNecessaireParPanneau}`);
+                console.log(`  Quantité à fournir par CNR par panneau: ${quantiteAFournirParCNRParPanneau}`);
+                console.log(`  Quantité à fournir par CNR TOTAL (${quantitePanneaux} panneaux): ${quantiteAFournirParCNRTotal}`);
+
+                if (quantiteAFournirParCNRTotal > 0) {
+                    // Récupérer le prix unitaire de cette entretoise
+                    const prixUnitaire = getEntretoisePrice(entretoiseNecessaire.nom, siteName);
+
+                    if (prixUnitaire && prixUnitaire > 0) {
+                        // NOUVEAU: Calcul avec la quantité totale d'entretoises
+                        const prixCetteEntretoise = prixUnitaire * quantiteAFournirParCNRTotal;
+                        prixTotalPanneau += prixCetteEntretoise;
+
+                        console.log(`  Prix unitaire: ${prixUnitaire} €`);
+                        console.log(`  Prix cette entretoise: ${quantiteAFournirParCNRTotal} × ${prixUnitaire} = ${prixCetteEntretoise} €`);
+                    } else {
+                        console.log(`  ❌ Prix unitaire non trouvé pour ${entretoiseNecessaire.nom}`);
+                    }
+                } else {
+                    console.log(`  Aucune quantité à fournir par CNR`);
+                }
+            });
+
+            console.log(`\nPrix total pour ${quantitePanneaux} panneau(x) ${panneauName}: ${prixTotalPanneau} €`);
+            console.log(`=== FIN CALCUL PRIX TOTAL TOUTES ENTRETOISES PANNEAU ===`);
+
+            return prixTotalPanneau;
         }
+
+        /**
+         * Récupère toutes les entretoises nécessaires pour un panneau donné
+         * @param {string} panneauName - Nom du panneau
+         * @param {string} siteName - Nom du site
+         * @return {Array} Liste des entretoises nécessaires avec leurs quantités
+         */
+        function getAllEntretoisesForPanneau(panneauName, siteName) {
+            console.log(`  Recherche toutes entretoises pour: ${panneauName} sur ${siteName}`);
+
+            // Utiliser les données de nomenclature déjà extraites
+            if (!entretoisesParPanneaux || Object.keys(entretoisesParPanneaux).length === 0) {
+                console.log(`  ❌ Données de nomenclature non disponibles`);
+                return [];
+            }
+
+            // Construire les clés possibles pour ce panneau/site
+            const possibleKeys = buildPossibleKeys(siteName, panneauName);
+            console.log(`  Clés possibles:`, possibleKeys);
+
+            // Chercher dans toutes les clés possibles
+            for (const key of possibleKeys) {
+                if (entretoisesParPanneaux[key]) {
+                    const entretoises = entretoisesParPanneaux[key];
+                    console.log(`  Trouvé ${entretoises.length} entretoises pour la clé: ${key}`);
+
+                    // Filtrer pour ne garder que les vraies entretoises (pas les panneaux)
+                    const entretoisesFiltered = entretoises.filter(item => {
+                        const nomLower = (item.nom || '').toLowerCase();
+                        return nomLower.includes('entretoise') ||
+                            nomLower.includes('plaque') ||
+                            nomLower.includes('ecrou') ||
+                            nomLower.includes('tirant') ||
+                            nomLower.includes('capot') ||
+                            nomLower.includes('barreau');
+                    });
+
+                    console.log(`  Entretoises filtrées: ${entretoisesFiltered.length}`);
+                    return entretoisesFiltered;
+                }
+            }
+
+            console.log(`  ❌ Aucune entretoise trouvée pour ${panneauName}`);
+            return [];
+        }
+
+        /**
+         * Version mise à jour de addEntretoisesToResults - remplace l'ancienne logique
+         */
+        function addEntretoisesToResults(site, panneau, panneauQuantity) {
+            console.log(`=== AJOUT ENTRETOISES AVEC CALCUL COMPLET ===`);
+            console.log(`Site: ${site}, Panneau: ${panneau}, Quantité panneaux: ${panneauQuantity}`);
+
+            // Supprimer toutes les anciennes entretoises pour ce panneau/site
+            window.cumulativeResults = window.cumulativeResults.filter(result =>
+                !(result.isEntretoise && result.site === site && result.linkedPanneau === panneau)
+            );
+
+            // NOUVEAU: Calculer le prix total de TOUTES les entretoises en incluant la quantité de panneaux
+            const prixTotalToutesEntretoises = calculateEntretoisesTotalPrice(panneau, site, panneauQuantity);
+
+            console.log(`Prix total toutes entretoises calculé pour ${panneauQuantity} panneau(x): ${prixTotalToutesEntretoises} €`);
+
+            if (prixTotalToutesEntretoises > 0) {
+                // Créer une seule entrée consolidée pour toutes les entretoises de ce panneau
+                const entretoiseEntryId = 'entretoises-' + Date.now() + '-' + Math.floor(Math.random() * 10000);
+
+                // Créer un résumé des entretoises sélectionnées par l'utilisateur
+                let descriptionResume = "Entretoises panneau";
+                if (selectedEntretoises && selectedEntretoises.length > 0) {
+                    const nomsEntretoises = selectedEntretoises.map(e => cleanEntretoiseNameForDisplay(e.description));
+                    descriptionResume = `Entretoises (${nomsEntretoises.join(', ')})`;
+                }
+
+                // Calculer la quantité totale d'entretoises que l'utilisateur fournit
+                let quantiteTotaleFournie = 0;
+                if (selectedEntretoises && selectedEntretoises.length > 0) {
+                    quantiteTotaleFournie = selectedEntretoises.reduce((sum, e) => sum + (e.quantity || 0), 0);
+                }
+
+                // Ajouter l'entrée consolidée au tableau cumulé
+                window.cumulativeResults.push({
+                    id: entretoiseEntryId,
+                    site: site,
+                    description: descriptionResume,
+                    repere: "",
+                    quantity: quantiteTotaleFournie, // Quantité fournie par l'utilisateur
+                    totalPrice: prixTotalToutesEntretoises, // Prix de ce que CNR doit fournir
+                    isEntretoise: true,
+                    linkedPanneau: panneau,
+                    quantitePanneaux: panneauQuantity, // NOUVEAU: Stocker la quantité de panneaux
+                    // Informations supplémentaires pour debug/suivi
+                    prixCalculeComplete: true,
+                    nombreEntretoisesSelectionnees: selectedEntretoises ? selectedEntretoises.length : 0
+                });
+
+                console.log(`Entrée consolidée ajoutée: ${descriptionResume}, prix total: ${prixTotalToutesEntretoises} €`);
+            } else {
+                console.log(`Aucune entretoise à facturer pour ce panneau`);
+            }
+
+            console.log(`=== FIN AJOUT ENTRETOISES ===`);
+        }
+
+        /**
+         * Version mise à jour de addEntretoise pour déclencher le recalcul
+         */
+        function addEntretoise() {
+            const entretoiseSelect = getElement('entretoise-select');
+            const quantityInput = getElement('entretoise-quantity-input');
+
+            if (!entretoiseSelect || !quantityInput) return;
+
+            const selectedIndex = entretoiseSelect.selectedIndex;
+            if (selectedIndex < 1) {
+                alert("Veuillez sélectionner une pièce.");
+                return;
+            }
+
+            const selectedOption = entretoiseSelect.options[selectedIndex];
+            const selectedEntretoise = selectedOption.value;
+            const quantity = parseInt(quantityInput.value) || 1;
+
+            if (quantity < 1) {
+                alert("La quantité doit être au minimum de 1.");
+                quantityInput.value = 1;
+                return;
+            }
+
+            const repere = selectedOption.dataset.repere || "";
+
+            // Vérifier si cette entretoise est déjà dans la liste
+            const existingIndex = selectedEntretoises.findIndex(e => e.description === selectedEntretoise);
+
+            if (existingIndex !== -1) {
+                selectedEntretoises[existingIndex].quantity = quantity;
+                console.log(`Quantité mise à jour pour ${selectedEntretoise}: ${quantity}`);
+            } else {
+                const entretoise = {
+                    description: selectedEntretoise,
+                    repere: repere,
+                    quantity: quantity,
+                    id: 'entretoise-' + Date.now()
+                };
+                selectedEntretoises.push(entretoise);
+                console.log(`Nouvelle entretoise ajoutée: ${selectedEntretoise}, quantité: ${quantity}`);
+            }
+
+            alert(`Pièce "${selectedEntretoise}" ajoutée avec une quantité de ${quantity}.`);
+
+            // Réinitialiser la sélection
+            entretoiseSelect.value = '';
+            quantityInput.value = 1;
+
+            const quantityContainer = getElement('entretoise-quantity-container');
+            if (quantityContainer) {
+                quantityContainer.style.display = 'none';
+            }
+
+            // Mettre à jour l'affichage informatif des entretoises
+            if (typeof updateEntretoiseInfoExtended === 'function') {
+                updateEntretoiseInfoExtended();
+            }
+
+            // NOUVEAU: Déclencher le recalcul complet des entretoises pour ce panneau
+            // On ne fait rien ici car le recalcul se fera au moment du calculateWithQuantity()
+        }
+
+
 
         /**
          * Récupère la quantité nécessaire d'une entretoise depuis la nomenclature
@@ -4011,6 +4298,7 @@
             return keys;
         }
 
+
 // Fonction pour mettre à jour l'affichage du tableau de résultats
         function updateResultsTable() {
             const resultDiv = document.getElementById('site-result');
@@ -4071,7 +4359,7 @@
             </tr>
     `;
 
-            // Afficher tous les items du tableau cumulatif
+            // Afficher tous les items du tableau cumulatif dans le bon ordre
             for (const result of window.cumulativeResults) {
                 // Pour les entrées qui sont uniquement de transport
                 if (result.isTransportOnly) {
@@ -4110,28 +4398,9 @@
                     </td>
                 </tr>
             `;
-                } else if (result.isEntretoise) {
-                    // Pour les entrées qui sont des pièces/entretoises
-                    // Modification : supprimé le repère de la colonne "Repère de panneaux" et enlevé le gras de la description
-                    finalResultsHtml += `
-                <tr id="row-${result.id}" style="background-color: #f5f5f5;">
-                    <td>${escapeHtml(result.site)}</td>
-                    <td></td>
-                    <td>${result.quantity || ''}</td>
-                    <td>${escapeHtml(result.description || '')}</td>
-                    <td colspan="3"></td>
-                    <td>
-                        <button class="delete-row-btn" data-id="${result.id}"
-                                style="background-color: #f44336; color: white; border: none;
-                                       padding: 5px 10px; border-radius: 3px; cursor: pointer;">
-                            Supprimer
-                        </button>
-                    </td>
-                </tr>
-            `;
-                } else {
-                    // Pour les entrées normales (produits/panneaux)
-                    // Modification : ajouté le gras au nom du panneau
+                }
+                // Pour les entrées normales (produits/panneaux) - AFFICHÉ EN PREMIER
+                else if (!result.isEntretoise) {
                     finalResultsHtml += `
                 <tr id="row-${result.id}">
                     <td>${escapeHtml(result.site)}</td>
@@ -4150,7 +4419,35 @@
                     </td>
                 </tr>
             `;
+
+                    // NOUVEAU: Chercher et afficher immédiatement les entretoises liées à ce panneau
+                    const entretoises = window.cumulativeResults.filter(item =>
+                        item.isEntretoise &&
+                        item.site === result.site &&
+                        item.linkedPanneau === result.description
+                    );
+
+                    for (const entretoise of entretoises) {
+                        finalResultsHtml += `
+                    <tr id="row-${entretoise.id}" style="background-color: #f5f5f5;">
+                        <td>${escapeHtml(entretoise.site)}</td>
+                        <td></td>
+                        <td>${entretoise.quantity || ''}</td>
+                        <td>${escapeHtml(entretoise.description || '')}</td>
+                        <td colspan="3"></td>
+                        <td>
+                            <button class="delete-row-btn" data-id="${entretoise.id}"
+                                    style="background-color: #f44336; color: white; border: none;
+                                           padding: 5px 10px; border-radius: 3px; cursor: pointer;">
+                                Supprimer
+                            </button>
+                        </td>
+                    </tr>
+                `;
+                    }
                 }
+                // Note: Les entretoises sont maintenant affichées avec leur panneau parent,
+                // donc on ignore les entretoises dans cette boucle principale
             }
 
             finalResultsHtml += `
@@ -4184,9 +4481,155 @@
             const resetButton = document.getElementById('reset-results');
             if (resetButton) {
                 resetButton.addEventListener('click', function() {
+                    console.log("=== DÉBUT RÉINITIALISATION COMPLÈTE ===");
+
+                    // Vider le tableau des résultats
                     window.cumulativeResults = [];
-                    updateResultsTable();
+
+                    // Masquer le tableau de résultats
+                    const resultDiv = document.getElementById('site-result');
+                    if (resultDiv) {
+                        resultDiv.style.display = 'none';
+                        console.log("Tableau de résultats masqué");
+                    }
+
+                    // Réinitialiser le sélecteur de site
+                    const siteSelect = document.getElementById('site-select');
+                    if (siteSelect) {
+                        siteSelect.value = '';
+                        console.log("Sélecteur de site réinitialisé");
+                    }
+
+                    // Masquer et réinitialiser le filtre de repère
+                    const repereFilterDiv = document.getElementById('repere-filter');
+                    if (repereFilterDiv) {
+                        repereFilterDiv.style.display = 'none';
+                    }
+                    const repereSelect = document.getElementById('repere-select');
+                    if (repereSelect) {
+                        repereSelect.value = '';
+                    }
+
+                    // Masquer et réinitialiser le formulaire de quantité
+                    const quantityFilterDiv = document.getElementById('quantity-filter');
+                    if (quantityFilterDiv) {
+                        quantityFilterDiv.style.display = 'none';
+                    }
+                    const quantityInput = document.getElementById('quantity-input');
+                    if (quantityInput) {
+                        quantityInput.value = 1;
+                    }
+
+                    // Masquer les options de transport
+                    const transportOptionsDiv = document.getElementById('transport-options');
+                    if (transportOptionsDiv) {
+                        transportOptionsDiv.style.display = 'none';
+                        console.log("Options de transport masquées");
+                    }
+
+                    // Masquer les options de transport panneaux
+                    const transportPanneauxOptionsDiv = document.getElementById('transport-panneaux-options');
+                    if (transportPanneauxOptionsDiv) {
+                        transportPanneauxOptionsDiv.style.display = 'none';
+                    }
+
+                    // Masquer les options d'emballage
+                    const emballageOptionsDiv = document.getElementById('emballage-options');
+                    if (emballageOptionsDiv) {
+                        emballageOptionsDiv.style.display = 'none';
+                    }
+
+                    // Masquer les options d'entretoises
+                    const entretoiseOptionsDiv = document.getElementById('entretoises-options');
+                    if (entretoiseOptionsDiv) {
+                        entretoiseOptionsDiv.style.display = 'none';
+                    }
+
+                    // Masquer la sélection d'entretoises spécifiques
+                    const entretoiseSelectionDiv = document.getElementById('entretoises-selection');
+                    if (entretoiseSelectionDiv) {
+                        entretoiseSelectionDiv.style.display = 'none';
+                    }
+
+                    // Réinitialiser toutes les options de transport à "non"
+                    const transportBarreauxNon = document.getElementById('transport-barreaux-non');
+                    const transportPanneauxNon = document.getElementById('transport-panneaux-non');
+                    const manutentionNon = document.getElementById('manutention-non');
+                    const dechargementNon = document.getElementById('dechargement-non');
+                    const manutentionPanneauxNon = document.getElementById('manutention-panneaux-non');
+                    const grutagePanneauxNon = document.getElementById('grutage-panneaux-non');
+                    const emballageNon = document.getElementById('emballage-non');
+                    const entretoisesCnrNon = document.getElementById('entretoises-cnr-non');
+                    const entretoisesTypePartiel = document.getElementById('entretoises-type-partiel');
+
+                    if (transportBarreauxNon) transportBarreauxNon.checked = true;
+                    if (transportPanneauxNon) transportPanneauxNon.checked = true;
+                    if (manutentionNon) manutentionNon.checked = true;
+                    if (dechargementNon) dechargementNon.checked = true;
+                    if (manutentionPanneauxNon) manutentionPanneauxNon.checked = true;
+                    if (grutagePanneauxNon) grutagePanneauxNon.checked = true;
+                    if (emballageNon) emballageNon.checked = true;
+                    if (entretoisesCnrNon) entretoisesCnrNon.checked = true;
+                    if (entretoisesTypePartiel) entretoisesTypePartiel.checked = true;
+
+                    // Réinitialiser les variables globales de transport
+                    transportBarreaux = "non";
+                    transportPanneaux = "non";
+                    manutention = "non";
+                    dechargement = "non";
+                    manutentionPanneaux = "non";
+                    grutagePanneaux = "non";
+                    emballage = "non";
+                    entretoisesParCNR = "non";
+                    entretoisesType = "partiel";
+
+                    // Masquer les options dépendantes
+                    const manutentionContainer = document.getElementById('manutention-container');
+                    const manutentionDaysContainer = document.getElementById('manutention-days-container');
+                    const dechargementContainer = document.getElementById('dechargement-container');
+                    const manutentionPanneauxContainer = document.getElementById('manutention-panneaux-container');
+                    const grutagePanneauxContainer = document.getElementById('grutage-panneaux-container');
+                    const entretoisesTypeContainer = document.getElementById('entretoises-type-container');
+
+                    if (manutentionContainer) manutentionContainer.style.display = 'none';
+                    if (manutentionDaysContainer) manutentionDaysContainer.style.display = 'none';
+                    if (dechargementContainer) dechargementContainer.style.display = 'none';
+                    if (manutentionPanneauxContainer) manutentionPanneauxContainer.style.display = 'none';
+                    if (grutagePanneauxContainer) grutagePanneauxContainer.style.display = 'none';
+                    if (entretoisesTypeContainer) entretoisesTypeContainer.style.display = 'none';
+
+                    // Réinitialiser les entretoises sélectionnées
+                    selectedEntretoises = [];
+                    currentPanneauWithEntretoises = null;
+
+                    // Nettoyer l'affichage des entretoises
+                    const entretoisesList = document.getElementById('entretoises-list');
+                    if (entretoisesList) {
+                        entretoisesList.innerHTML = '';
+                    }
+                    const entretoisesSelected = document.getElementById('entretoises-selected');
+                    if (entretoisesSelected) {
+                        entretoisesSelected.style.display = 'none';
+                    }
+
+                    // Réinitialiser les sélecteurs d'entretoises
+                    const entretoiseSelect = document.getElementById('entretoise-select');
+                    if (entretoiseSelect) {
+                        entretoiseSelect.value = '';
+                    }
+                    const entretoiseQuantityContainer = document.getElementById('entretoise-quantity-container');
+                    if (entretoiseQuantityContainer) {
+                        entretoiseQuantityContainer.style.display = 'none';
+                    }
+
+                    // Réinitialiser les variables globales
+                    window.currentFilteredItems = null;
+
+                    console.log("=== RÉINITIALISATION COMPLÈTE EFFECTUÉE ===");
+                    console.log("Retour à l'état initial - Seulement le sélecteur de site visible");
                 });
+            } else {
+                console.log("Bouton reset-results non trouvé");
             }
 
             // Boutons de suppression
@@ -4787,6 +5230,9 @@
          * Collecte les informations sur les prix calculés avec détails pour l'export Excel
          * @returns {Object} Un objet contenant les différents prix calculés avec détails
          */
+        /**
+         * Version mise à jour de collectPriceData pour collecter les détails complets des entretoises
+         */
         function collectPriceData() {
             // Calculer les prix avec les entretoises incluses
             const priceDetails = calculerPrixTotal();
@@ -4795,25 +5241,22 @@
             let totalPanneaux = 0;
             let nbPanneauxSupStVallier = 0;
             let detailMontage = [];
-            let detailEntretoises = [];  // Détail des entretoises pour l'export
+            let detailEntretoisesComplet = {}; // NOUVEAU: Structure complète des entretoises
 
-            // Compter les panneaux par type et site, et collecter les entretoises
+            // Compter les panneaux par type et site, et collecter les détails complets des entretoises
             if (window.cumulativeResults) {
                 for (const result of window.cumulativeResults) {
-                    if (result.isEntretoise) {
-                        // Collecter les détails des entretoises pour l'export Excel
-                        detailEntretoises.push({
-                            site: result.site,
-                            description: result.description,
-                            quantity: result.quantity,
-                            prixUnitaire: result.prixUnitaireBPU || 0,
-                            quantiteNecessaire: result.quantiteNecessaire || 0,
-                            quantiteClient: result.quantity || 0,
-                            quantiteAFournir: (result.quantiteNecessaire || 0) - (result.quantity || 0),
-                            prixTotal: result.totalPrice || 0,
-                            linkedPanneau: result.linkedPanneau || ''
-                        });
-                    } else if (!result.isTransportOnly && result.quantity) {
+                    if (result.isEntretoise && result.prixCalculeComplete) {
+                        // NOUVEAU: Collecter les détails complets pour les entretoises calculées avec le nouveau système
+                        const detailsEntretoises = collectDetailledEntretoiseInfo(result.site, result.linkedPanneau);
+
+                        if (detailsEntretoises && detailsEntretoises.detailParEntretoise.length > 0) {
+                            const panneauKey = `${result.site}|${result.linkedPanneau}`;
+                            detailEntretoisesComplet[panneauKey] = detailsEntretoises;
+
+                            console.log(`Détails entretoises collectés pour ${panneauKey}:`, detailsEntretoises);
+                        }
+                    } else if (!result.isTransportOnly && !result.isEntretoise && result.quantity) {
                         // Traitement des panneaux (code existant)
                         const quantity = parseInt(result.quantity, 10);
                         totalPanneaux += quantity;
@@ -4847,6 +5290,9 @@
                 }
             }
 
+            // Consolider tous les détails d'entretoises en un seul résumé
+            const entretoisesConsolide = consolidateEntretoiseDetails(detailEntretoisesComplet);
+
             // Collecter les détails des forfaits (code existant)
             const forfaitLogistique = {
                 prixUnitaire: calculerForfaitLogistique(totalPanneaux).toFixed(2).replace('.', ','),
@@ -4866,26 +5312,7 @@
             const grutage = calculerPrixGrutage();
             const grutagePanneaux = calculerPrixGrutagePanneaux();
 
-            // NOUVEAU: Calculer les totaux pour les entretoises pour le récapitulatif détaillé
-            let totalQuantiteEntretoises = 0;
-            let totalQuantiteAFournirEntretoises = 0;
-            let prixMoyenEntretoises = 0;
-
-            if (detailEntretoises.length > 0) {
-                let sommePrixUnitaires = 0;
-
-                detailEntretoises.forEach(entretoise => {
-                    totalQuantiteEntretoises += entretoise.quantiteClient;
-                    totalQuantiteAFournirEntretoises += entretoise.quantiteAFournir;
-                    sommePrixUnitaires += entretoise.prixUnitaire;
-                });
-
-                // Prix moyen pondéré des entretoises
-                prixMoyenEntretoises = detailEntretoises.length > 0 ? (sommePrixUnitaires / detailEntretoises.length) : 0;
-            }
-
-            console.log(`Export: Total panneaux: ${totalPanneaux}, Entretoises: ${detailEntretoises.length}`);
-            console.log(`Export entretoises: Quantité client: ${totalQuantiteEntretoises}, À fournir: ${totalQuantiteAFournirEntretoises}, Prix moyen: ${prixMoyenEntretoises.toFixed(2)} €`);
+            console.log(`Export: Total panneaux: ${totalPanneaux}, Entretoises détaillées: ${Object.keys(detailEntretoisesComplet).length} panneaux`);
 
             return {
                 // Prix existants
@@ -4914,16 +5341,135 @@
                 grutage: grutage,
                 grutagePanneaux: grutagePanneaux,
                 detailMontage: detailMontage,
-                detailEntretoises: detailEntretoises,
 
-                // NOUVEAU: Données consolidées pour le récapitulatif détaillé des entretoises
-                entretoisesSummary: {
-                    totalQuantiteClient: totalQuantiteEntretoises,
-                    totalQuantiteAFournir: totalQuantiteAFournirEntretoises,
-                    prixMoyenUnitaire: prixMoyenEntretoises,
-                    nombreEntretoises: detailEntretoises.length,
-                    montantTotal: priceDetails.prixEntretoises || 0
+                // NOUVEAU: Données consolidées des entretoises pour l'export Excel
+                entretoisesSummary: entretoisesConsolide
+            };
+        }
+
+        /**
+         * Collecte les détails complets des entretoises pour un panneau donné
+         * @param {string} site - Site du panneau
+         * @param {string} panneau - Nom du panneau
+         * @return {Object} Détails complets des entretoises
+         */
+        function collectDetailledEntretoiseInfo(site, panneau) {
+            console.log(`Collecte détails entretoises pour ${site} - ${panneau}`);
+
+            // Récupérer toutes les entretoises nécessaires pour ce panneau
+            const toutesEntretoisesNecessaires = getAllEntretoisesForPanneau(panneau, site);
+
+            if (toutesEntretoisesNecessaires.length === 0) {
+                console.log("Aucune entretoise nécessaire trouvée");
+                return null;
+            }
+
+            const detailParEntretoise = [];
+            let totalQuantiteFournie = 0;
+            let montantTotal = 0;
+
+            // Pour chaque entretoise nécessaire, calculer les détails
+            toutesEntretoisesNecessaires.forEach(entretoiseNecessaire => {
+                // Trouver si l'utilisateur fournit cette entretoise
+                const entretoiseFournieParUser = selectedEntretoises.find(selected =>
+                    selected.description.toLowerCase().includes(entretoiseNecessaire.nom.toLowerCase()) ||
+                    cleanEntretoiseNameForDisplay(selected.description).toLowerCase() === entretoiseNecessaire.nom.toLowerCase()
+                );
+
+                const quantiteFournie = entretoiseFournieParUser ? (entretoiseFournieParUser.quantity || 0) : 0;
+                const quantiteNecessaire = entretoiseNecessaire.quantite || 0;
+                const quantiteAFournirCNR = Math.max(0, quantiteNecessaire - quantiteFournie);
+
+                // Récupérer le prix unitaire
+                const prixUnitaire = getEntretoisePrice(entretoiseNecessaire.nom, site) || 0;
+                const sousTotal = prixUnitaire * quantiteAFournirCNR;
+
+                if (quantiteNecessaire > 0) { // Inclure même si quantiteAFournirCNR = 0 pour l'affichage
+                    detailParEntretoise.push({
+                        nom: cleanEntretoiseNameForDisplay(entretoiseNecessaire.nom),
+                        necessaire: quantiteNecessaire,
+                        fournie: quantiteFournie,
+                        aFournirCNR: quantiteAFournirCNR,
+                        prixUnitaire: prixUnitaire,
+                        sousTotal: sousTotal
+                    });
+
+                    totalQuantiteFournie += quantiteFournie;
+                    montantTotal += sousTotal;
                 }
+            });
+
+            console.log(`Détails collectés: ${detailParEntretoise.length} entretoises, Total fourni: ${totalQuantiteFournie}, Montant: ${montantTotal}`);
+
+            return {
+                site: site,
+                panneau: panneau,
+                totalQuantiteFournie: totalQuantiteFournie,
+                detailParEntretoise: detailParEntretoise,
+                montantTotal: montantTotal
+            };
+        }
+
+        /**
+         * Consolide tous les détails d'entretoises de tous les panneaux en un résumé global
+         * @param {Object} detailEntretoisesComplet - Détails par panneau
+         * @return {Object} Résumé consolidé pour l'export Excel
+         */
+        function consolidateEntretoiseDetails(detailEntretoisesComplet) {
+            console.log("Consolidation des détails d'entretoises pour l'export");
+
+            const panneauxKeys = Object.keys(detailEntretoisesComplet);
+
+            if (panneauxKeys.length === 0) {
+                return {
+                    totalQuantiteFournie: 0,
+                    nombrePanneaux: 0,
+                    detailFormule: "Aucune entretoise",
+                    montantTotal: 0,
+                    details: []
+                };
+            }
+
+            let totalQuantiteFournieGlobal = 0;
+            let montantTotalGlobal = 0;
+            const formuleParts = [];
+            const detailsGlobaux = [];
+
+            // Consolider les données de tous les panneaux
+            panneauxKeys.forEach(panneauKey => {
+                const detail = detailEntretoisesComplet[panneauKey];
+                totalQuantiteFournieGlobal += detail.totalQuantiteFournie;
+                montantTotalGlobal += detail.montantTotal;
+
+                // Construire la partie de formule pour ce panneau
+                const formulesPanneau = detail.detailParEntretoise
+                    .filter(e => e.aFournirCNR > 0) // Seulement les entretoises que CNR doit fournir
+                    .map(e => `${e.nom}: (${e.necessaire}-${e.fournie}) × ${e.prixUnitaire.toFixed(2)}€`);
+
+                if (formulesPanneau.length > 0) {
+                    formuleParts.push(`[${detail.panneau}] ${formulesPanneau.join(' + ')}`);
+                }
+
+                // Ajouter aux détails globaux
+                detail.detailParEntretoise.forEach(e => {
+                    detailsGlobaux.push({
+                        ...e,
+                        panneau: detail.panneau,
+                        site: detail.site
+                    });
+                });
+            });
+
+            const detailFormule = formuleParts.length > 0 ? formuleParts.join(' | ') : "Toutes entretoises fournies par utilisateur";
+
+            console.log(`Consolidation terminée: ${panneauxKeys.length} panneau(s), Total fourni: ${totalQuantiteFournieGlobal}, Montant: ${montantTotalGlobal}`);
+
+            return {
+                totalQuantiteFournie: totalQuantiteFournieGlobal,
+                nombrePanneaux: panneauxKeys.length,
+                detailFormule: detailFormule,
+                montantTotal: montantTotalGlobal,
+                details: detailsGlobaux
             };
         }
 

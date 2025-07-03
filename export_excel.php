@@ -297,61 +297,64 @@ try {
         number_format((float)($data['prices']['prixEmballage'] ?? 0), 2, ',', ' ')
     ];
 
-// 11. Entretoises fournies
-    if (isset($data['prices']['entretoisesSummary']) && $data['prices']['entretoisesSummary']['nombreEntretoises'] > 0) {
+// 11. Entretoises fournies (VERSION MISE À JOUR)
+    if (isset($data['prices']['entretoisesSummary']) && $data['prices']['entretoisesSummary']['montantTotal'] > 0) {
         $entretoises = $data['prices']['entretoisesSummary'];
 
-        // Construire la formule explicative détaillée
-        $formuleEntretoises = "";
-        $detailsFormule = [];
+        // Vérifier que nous avons des données valides
+        if ($entretoises['nombrePanneaux'] > 0) {
 
-        if (isset($data['prices']['detailEntretoises']) && !empty($data['prices']['detailEntretoises'])) {
-            foreach ($data['prices']['detailEntretoises'] as $entretoise) {
-                // Nettoyer le nom de l'entretoise (enlever "ENTRETOISE ")
-                $cleanName = $entretoise['description'];
-                if (strpos(strtoupper($cleanName), 'ENTRETOISE ') === 0) {
-                    $cleanName = substr($cleanName, 11); // Enlever "ENTRETOISE "
+            // Calculer un prix unitaire moyen pour l'affichage
+            $prixUnitaireMoyen = 0;
+            $totalQuantiteAFournir = 0;
+
+            if (isset($entretoises['details']) && !empty($entretoises['details'])) {
+                $sommePrixPonderes = 0;
+
+                foreach ($entretoises['details'] as $detail) {
+                    $quantiteAFournir = intval($detail['aFournirCNR']);
+                    $prixUnitaire = floatval($detail['prixUnitaire']);
+
+                    $totalQuantiteAFournir += $quantiteAFournir;
+                    $sommePrixPonderes += ($quantiteAFournir * $prixUnitaire);
                 }
 
-                $qteFournir = intval($entretoise['quantiteAFournir']);
-                $prixUnit = floatval($entretoise['prixUnitaire']);
-
-                // Ajouter seulement si la quantité à fournir est positive
-                if ($qteFournir > 0) {
-                    $detailsFormule[] = $cleanName . ": " . $qteFournir . " × " . number_format($prixUnit, 2, ',', ' ') . " €";
+                // Prix moyen pondéré
+                if ($totalQuantiteAFournir > 0) {
+                    $prixUnitaireMoyen = $sommePrixPonderes / $totalQuantiteAFournir;
                 }
             }
 
-            if (!empty($detailsFormule)) {
-                $formuleEntretoises = implode(' + ', $detailsFormule);
+            // Construire la formule détaillée
+            $formuleDetaillee = $entretoises['detailFormule'];
+
+            // Si la formule est trop longue pour Excel (> 200 caractères), la raccourcir
+            if (strlen($formuleDetaillee) > 200) {
+                $nombreEntretoises = count($entretoises['details']);
+                $formuleDetaillee = "Calcul détaillé de {$nombreEntretoises} type(s) d'entretoises sur {$entretoises['nombrePanneaux']} panneau(x)";
             }
-        }
 
-        // Si aucun détail ou formule trop longue, utiliser une version simplifiée
-        if (empty($formuleEntretoises) || strlen($formuleEntretoises) > 150) {
-            $totalQteFournir = intval($entretoises['totalQuantiteAFournir']);
-            $prixMoyen = floatval($entretoises['prixMoyenUnitaire']);
-
-            if ($totalQteFournir > 0) {
-                $formuleEntretoises = $totalQteFournir . " entretoises × prix moyen " .
-                    number_format($prixMoyen, 2, ',', ' ') . " €";
-            } else {
-                $formuleEntretoises = "Aucune entretoise à fournir";
+            // Affichage de la quantité (quantité fournie par l'utilisateur)
+            $quantiteAffichage = strval($entretoises['totalQuantiteFournie']);
+            if ($entretoises['totalQuantiteFournie'] == 0) {
+                $quantiteAffichage = "0 (CNR fournit tout)";
             }
-        }
 
-        // Ajouter la ligne au tableau des prix seulement si il y a des entretoises à fournir
-        $montantTotal = floatval($entretoises['montantTotal']);
-        if ($montantTotal > 0) {
+            // Ajouter la ligne au tableau des prix
             $priceData[] = [
                 'Entretoises fournies',                                        // Désignation
-                strval($entretoises['totalQuantiteClient']),                   // Quantité (client)
+                $quantiteAffichage,                                            // Quantité fournie par client
                 '',                                                            // Nombre camion (vide)
                 '',                                                            // Nombre Demi-journée (vide)
-                number_format($entretoises['prixMoyenUnitaire'], 2, ',', ' '), // Prix unitaire moyen
-                $formuleEntretoises,                                           // Formule de calcul
-                number_format($montantTotal, 2, ',', ' ')                      // Montant total
+                number_format($prixUnitaireMoyen, 2, ',', ' '),              // Prix unitaire moyen
+                $formuleDetaillee,                                             // Formule détaillée
+                number_format($entretoises['montantTotal'], 2, ',', ' ')      // Montant total
             ];
+
+            // Log pour debug (optionnel, à retirer en production)
+            error_log("Export entretoises: Quantité fournie = {$entretoises['totalQuantiteFournie']}, " .
+                "Prix moyen = " . number_format($prixUnitaireMoyen, 2) .
+                ", Montant = " . number_format($entretoises['montantTotal'], 2));
         }
     }
 
